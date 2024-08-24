@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Simplified-Test",
+    "slug": "Simplified-Test",
+    "version": "1.0.1",
+    "icon": "./src/images/icon.png",
+    "extra": {
+      "eas": {
+        "projectId": "6778d6c1-6100-4933-b07f-33f4beda2586"
+      }
+    },
+    "ios": {
+      "icon": "./assets/icon.png",
+      "bundleIdentifier": "org.name.SimplifiedTest",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Simplified Trade requires Photo library access to upload profile picture.",
+        "CFBundleVersion": "3"
+      }
+    },
+    "android": {
+      "icon": "./assets/icon.png",
+      "package": "org.name.SimplifiedTest"
+    },
+    "splash": {
+      "backgroundColor": "#ffffff",
+      "resizeMode": "contain",
+      "image": "./assets/splash.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share them with your friends."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera."
+        }
+      ]
+    ]
+  }
+}
