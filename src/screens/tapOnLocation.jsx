@@ -7,7 +7,7 @@ const TapOnMyLocationSuggested = ({ onAddNewLocationPress, onClose, onLocationSe
   const [isPressed, setIsPressed] = useState(false);
 
   const data = [
-    { id: "1", title: "2102 Vons REDONDO BEACH", distance: "0.7m", count: "125" },
+    { id: "1", title: "046 Save Mart ANGELS CAMP", distance: "0.7m", count: "125" },
     { id: "2", title: "Sunset Groceries", distance: "1.2m", count: "0" },
     { id: "3", title: "Ocean View Mall", distance: "0.5m", count: "125" },
     { id: "4", title: "Palm Heights Plaza", distance: "0.8m", count: "10" },

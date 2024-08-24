@@ -18,8 +18,8 @@ const Homepage = ({ navigation }) => {
   const [loc1Model, setLoc1Model] = useState(false); 
   const [loc2Model, setLoc2Model] = useState(false); 
   const [loc3Model, setLoc3Model] = useState(false); 
-  const[surveySelect, setSurveySelect] = useState("");
-  const[locSelect, setLocSelect] = useState("");
+  const [surveySelect, setSurveySelect] = useState("");
+  const [locSelect, setLocSelect] = useState("");
   const [locModalVisible, setLocModalVisible] = useState(false);
   const [surveyData, setSurveyData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -200,15 +200,15 @@ const formatExpiryDate = (dateString) => {
 };
 
 
-const filteredSurveys = searchText.trim() === ""
-  ? surveyData
-  : surveyData.filter(survey => {
-      const searchTextLower = searchText.toLowerCase();
-      // Check if surveyName or any locationName in completions matches the searchText
-      return survey.surveyName.toLowerCase().includes(searchTextLower) ||
-        survey.completions.some(location =>
-          location.locationName.toLowerCase().includes(searchTextLower)
-        );
+  const filteredSurveys = searchText.trim() === ""
+    ? surveyData
+    : surveyData.filter(survey => {
+        const searchTextLower = searchText.toLowerCase();
+        // Check if surveyName or any locationName in completions matches the searchText
+        return survey.surveyName.toLowerCase().includes(searchTextLower) ||
+          survey.completions.some(location =>
+            location.locationName.toLowerCase().includes(searchTextLower)
+          );
   });
 
 
@@ -219,6 +219,11 @@ const filteredSurveys = searchText.trim() === ""
 
   const hideLocModal = () => {
     setLocModalVisible(!locModalVisible);
+  };
+
+  const handleLocationNavigation = (locationName, survey) => {
+    // Navigate to SpecificSurvey with location and selectedSurvey
+    navigation.navigate('SpecificSurvey', { location: locationName, selectedSurvey: survey });
   };
 
   return (
@@ -287,30 +292,52 @@ const filteredSurveys = searchText.trim() === ""
 
       {/* Repeatable card view */}
       <ScrollView style={styles.cardScrollView}>
-        {filteredSurveys.map((survey, index) => (
+        {filteredSurveys.map((survey, index) => {
+          const locationCount = survey.completions.length;
+
+          const displayLocation = searchText.trim() === ""
+            ? `+ ${locationCount} Locations`
+            : survey.completions.some(location =>
+                location.locationName.toLowerCase().includes(searchText.toLowerCase())
+              )
+            ? survey.completions.find(location =>
+                location.locationName.toLowerCase().includes(searchText.toLowerCase())
+              ).locationName
+            : `+ ${locationCount} Locations`;
+
+          return (
             <TouchableOpacity key={index} activeOpacity={0.95}>
-                <View style={styles.cardContainer}>
-                    <TouchableOpacity onPress={() => handleLocationPress(survey)}>
-                      <View style={styles.cardContent}>
-                        <Text style={styles.cardTitle}>{survey.surveyName}</Text>
-                        <TouchableOpacity onPress={() => handleLocationPress(survey)}>
-                          <Text style={styles.cardlocation}>+ {survey.completions.length} Locations</Text>
-                        </TouchableOpacity>
-                        <View style={[styles.infoContainer, { width: survey.expiryDate.length * 7.3 }]}>
-                          <Text style={styles.infoText}>{formatExpiryDate(survey.expiryDate)}</Text>
-                        </View>
-                        {/* <View>
-                            <Text style={styles.lightGrayText}>{survey.expiryDate}</Text>
-                        </View> */}
-                      </View>
-                    </TouchableOpacity>
-                    <View style={styles.shapeContainer}>
-                        <Text style={styles.shapeText}>{survey.count}</Text>
+              <View style={styles.cardContainer}>
+                <TouchableOpacity key={index} onPress={() => {
+                  if (searchText.trim() !== "" && survey.completions.some(location =>
+                      location.locationName.toLowerCase().includes(searchText.toLowerCase())
+                    )) {
+                    const location = survey.completions.find(location =>
+                      location.locationName.toLowerCase().includes(searchText.toLowerCase())
+                    );
+                    console.log('hello');
+                    handleLocationNavigation(location.locationName, survey);
+                  } else {
+                    handleLocationPress(survey);
+                  }
+                }}>
+                  <View style={styles.cardContent}>
+                    <Text style={styles.cardTitle}>{survey.surveyName}</Text>
+                    <Text style={styles.cardlocation}>{displayLocation}</Text>
+                    <View style={[styles.infoContainer, { width: survey.expiryDate.length * 7.3 }]}>
+                      <Text style={styles.infoText}>{formatExpiryDate(survey.expiryDate)}</Text>
                     </View>
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.shapeContainer}>
+                  <Text style={styles.shapeText}>{survey.count}</Text>
                 </View>
+              </View>
             </TouchableOpacity>
-        ))}
-        </ScrollView>
+          );
+        })}
+      </ScrollView>
+
 
       {/* Suggested Locations Modal */}
       <Modal
