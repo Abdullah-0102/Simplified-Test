@@ -1,47 +1,118 @@
-import React, { useState } from "react";
-import { Image, StyleSheet, View, FlatList, TouchableOpacity, Alert } from "react-native";
-import { Pressable } from "react-native";
+import React, { useState, useEffect } from "react";
+import { Image, StyleSheet, View, FlatList, TouchableOpacity, Pressable, ActivityIndicator, Platform, Alert } from "react-native";
+import Geolocation from '@react-native-community/geolocation'; 
+import { promptForEnableLocationIfNeeded, isLocationEnabled } from 'react-native-android-location-enabler';
 import Text from "../components/text";
 
-const TapOnMyLocationSuggested = ({ onAddNewLocationPress, onClose, onLocationSelect }) => {
+// Utility function to calculate distance between two coordinates (in kilometers)
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Radius of the Earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+  const distance = R * c; // Distance in km
+  return distance;
+};
+
+const TapOnMyLocationSuggested = ({ onAddNewLocationPress, onClose, onLocationSelect, storeData }) => {
   const [isPressed, setIsPressed] = useState(false);
+  const [locations, setLocations] = useState([]);
+  const [storedLocations, setStoredLocations] = useState(null); // State to store cached locations
+  const [loading, setLoading] = useState(false); // Loader state
+  const [currentLocation, setCurrentLocation] = useState(null);
 
-  const data = [
-    { id: "1", title: "046 Save Mart ANGELS CAMP", distance: "0.7m", count: "125" },
-    { id: "2", title: "Sunset Groceries", distance: "1.2m", count: "0" },
-    { id: "3", title: "Ocean View Mall", distance: "0.5m", count: "125" },
-    { id: "4", title: "Palm Heights Plaza", distance: "0.8m", count: "10" },
-    { id: "5", title: "Harbor Walk Plaza", distance: "1.0m", count: "125" },
-    { id: "6", title: "City Center Market", distance: "0.9m", count: "40" },
-    { id: "7", title: "Bayview Square", distance: "1.5m", count: "80" },
-    { id: "8", title: "Metroplex Mall", distance: "1.2m", count: "60" },
-    { id: "9", title: "Central Park Plaza", distance: "1.8m", count: "20" },
-    { id: "10", title: "Golden Gate Plaza", distance: "1.3m", count: "90" },
-  ];
+  useEffect(() => {
+    // console.log(storedLocations.slice(0,10));
+    if (!storedLocations) {
+      handleLocationCheck();
+    } else {
+      // If locations are already cached, load them directly
+      setLocations(storedLocations);
+    }
+  }, []);
 
-
-  const handlePressIn = () => {
-    setIsPressed(true);
+  const handleLocationCheck = async () => {
+    if (Platform.OS === 'android') {
+      const enabled = await isLocationEnabled();
+      if (!enabled) {
+        try {
+          const result = await promptForEnableLocationIfNeeded();
+          setLoading(true); // Start loading
+          if (result === 'enabled' || result === 'already-enabled') {
+            getCurrentLocation();
+          }
+        } catch (error) {
+          Alert.alert('Location Error', 'Please enable your location services!');
+          onClose();
+          setLoading(false); // Stop loading
+        }
+      } else {
+        setLoading(true); // Start loading
+        getCurrentLocation();
+      }
+    } else {
+      setLoading(true); // Start loading
+      getCurrentLocation();
+    }
   };
 
-  const handlePressOut = () => {
-    setIsPressed(false);
+  const getCurrentLocation = async () => {
+    Geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        console.log(latitude, longitude);
+        setCurrentLocation({ latitude, longitude });
+        findClosestLocations(latitude, longitude);
+      },
+      (error) => {
+        console.log(error);
+        Alert.alert("Location Error", "Please enable location services to fetch your current location.");
+        setLoading(false); // Stop loading
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 60000,
+        maximumAge: 10000,
+      }
+    );
+  };
+
+  const findClosestLocations = (latitude, longitude) => {
+    const validLocations = storeData.filter(location => location.lat !== 0 && location.lon !== 0); // Filter out locations with lat/lon as 0
+
+    const sortedLocations = validLocations
+      .map((location) => ({
+        ...location,
+        distance: calculateDistance(latitude, longitude, location.lat, location.lon),
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 10); // Take the top 10 closest locations
+
+    setLocations(sortedLocations);
+    setStoredLocations(sortedLocations); // Cache the locations
+    setLoading(false); // Stop loading
   };
 
   const handleLocationPress = (locationTitle) => {
     onClose();
     setTimeout(() => {
-      onLocationSelect(locationTitle); // Call the parent callback with selected location title
-    }, 300); // Small delay to allow the modal to close before navigating
+      onLocationSelect(locationTitle); 
+    }, 300); 
   };
 
   const renderItem = ({ item }) => (
     <View>
-      <TouchableOpacity onPress={() => handleLocationPress(item.title)}>
+      <TouchableOpacity onPress={() => handleLocationPress(item.name)}>
         <View style={styles.card}>
           <View style={styles.locationInfo}>
-            <Text style={styles.locationTitle}>{item.title}</Text>
-            <Text style={styles.locationDetails}>1212 Beryl St ({item.distance})</Text>
+            <Text style={styles.locationTitle}>{item.name}</Text>
+            <Text style={styles.locationDetails}>
+              {item.address ? `${item.address} (${item.distance.toFixed(2)} km)` : 'No address listed'}
+            </Text>
           </View>
           <Image
             style={styles.vectorIcon}
@@ -72,25 +143,30 @@ const TapOnMyLocationSuggested = ({ onAddNewLocationPress, onClose, onLocationSe
         </View>
       </View>
 
-      <View style={styles.modalBottom}>
-        <FlatList
-          data={data}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 16 }}
-        />
-
-        <View style={styles.addButtonContainer}>
-          <Pressable
-            style={[styles.addButton, isPressed && styles.addButtonPressed]}
-            onPress={onAddNewLocationPress}
-            // onPressIn={handlePressIn}
-            // onPressOut={handlePressOut}
-            >
-            <Text style={styles.addButtonLabel}>Add New Location</Text>
-          </Pressable>
+      {loading ? (
+        <View style={styles.loaderContainer}>
+          <Text style={styles.loadingText}>Loading nearest locations...</Text>
+          <ActivityIndicator size="large" color="blue" />
         </View>
-      </View>
+      ) : (
+        <View style={styles.modalBottom}>
+          <FlatList
+            data={locations}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          />
+
+          <View style={styles.addButtonContainer}>
+            <Pressable
+              style={[styles.addButton, isPressed && styles.addButtonPressed]}
+              onPress={onAddNewLocationPress}
+            >
+              <Text style={styles.addButtonLabel}>Add New Location</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -113,8 +189,8 @@ const styles = StyleSheet.create({
   bar: {
     width: 40,
     height: 5,
-    backgroundColor: '#A9A9A9', // Dark gray color
-    borderRadius: 2.5, // Half of the height for a rounded bar
+    backgroundColor: '#A9A9A9',
+    borderRadius: 2.5,
   },
   modalHeader: {
     flexDirection: "row",
@@ -125,7 +201,6 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    // fontWeight: "700",
     color: "black",
     fontFamily: "SourceSans3-Bold",
   },
@@ -140,7 +215,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
-    flex: 1, // Ensure the modal bottom takes remaining space
+    flex: 1,
   },
   card: {
     flexDirection: "row",
@@ -149,9 +224,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     backgroundColor: "#FFFFFF",
-    borderRadius: 0, // Removed border radius
-    elevation: 0, // Removed shadow/elevation
-    marginBottom: 0, // Removed bottom margin
   },
   locationInfo: {
     flex: 1,
@@ -171,8 +243,8 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 1,
-    backgroundColor: "#E0E0E0", // Light grey color for separator
-    marginVertical: 8, // Some vertical space around the separator
+    backgroundColor: "#E0E0E0",
+    marginVertical: 8,
   },
   addButtonContainer: {
     marginTop: 12,
@@ -193,7 +265,19 @@ const styles = StyleSheet.create({
   },
   addButtonPressed: {
     color: 'white',
-    backgroundColor: 'black', // Change button color to black when pressed
+    backgroundColor: 'black',
+  },
+  loadingText: {
+    color: 'black',
+    fontSize: 16,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  loaderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
   },
 });
 

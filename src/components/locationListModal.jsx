@@ -5,28 +5,31 @@ import { useNavigation } from '@react-navigation/native';
 
 const LocationListModal = ({ locModalVisible, hideLocModal, authState, selectedSurvey }) => {
   const [locationDetails, setLocationDetails] = useState([]);
-  const [loading, setLoading] = useState(true); // Add loading state
+  const [loading, setLoading] = useState(true);
+  const [storeData, setStoreData] = useState([]);
   const navigation = useNavigation();
 
   useEffect(() => {
     const fetchSurveyDetails = async () => {
-      setLoading(true); // Show the loading indicator when fetching starts
+      setLoading(true);
       try {
-        const response = await axios.get('https://stapi.simplifiedtrade.com/app/v2/surveys/json');
-
-        // Find the selected survey from the response
-        const selectedSurveyData = response.data.find(
+        const surveyResponse = await axios.get('https://stapi.simplifiedtrade.com/app/v2/surveys/json');
+        const selectedSurveyData = surveyResponse.data.find(
           (survey) => survey.surveyName === selectedSurvey.surveyName
         );
 
-        // If the survey is found, extract its locations
         if (selectedSurveyData) {
           setLocationDetails(selectedSurveyData.completions || []);
         }
+
+        // Fetch the store data
+        const storeResponse = await axios.get('https://stapi.simplifiedtrade.com/app/v2/stores/json');
+        setStoreData(storeResponse.data);
+
       } catch (error) {
-        console.error('Error fetching survey details:', error);
+        console.error('Error fetching data:', error);
       } finally {
-        setLoading(false); // Hide the loading indicator when fetching completes
+        setLoading(false);
       }
     };
 
@@ -35,13 +38,23 @@ const LocationListModal = ({ locModalVisible, hideLocModal, authState, selectedS
     }
   }, [authState.token, selectedSurvey]);
 
-  const handleLocationPress = (locationName) => {
+  const handleLocationPress = async (item) => {
     hideLocModal(); // Close the modal
-    navigation.navigate('SpecificSurvey', { location: locationName, selectedSurvey }); // Navigate to SpecificSurvey
+
+    // Find the coordinates for the selected locationName
+    const matchingStore = storeData.find(store => store.name === item.locationName);
+    const coordinates = matchingStore ? { lat: matchingStore.lat, lon: matchingStore.lon } : { lat: null, lon: null };
+
+    navigation.navigate('SpecificSurvey', { 
+      location: item.locationName, 
+      selectedSurvey, 
+      selectedLocation: item,
+      coordinates // Pass the coordinates to the next screen
+    });
   };
 
   const LocationItem = React.memo(({ item, onPress }) => (
-    <TouchableOpacity onPress={() => onPress(item.locationName)}>
+    <TouchableOpacity onPress={() => onPress(item)}>
       <View style={styles.locationItem}>
         <View style={styles.textContainer}>
           <Text style={styles.locationName}>{item.locationName}</Text>
@@ -64,7 +77,6 @@ const LocationListModal = ({ locModalVisible, hideLocModal, authState, selectedS
   const renderLocationItem = ({ item }) => (
     <LocationItem item={item} onPress={handleLocationPress} />
   );
-  
 
   return (
     <Modal
@@ -77,7 +89,7 @@ const LocationListModal = ({ locModalVisible, hideLocModal, authState, selectedS
         <View style={styles.overlay}>
           <View style={styles.modalContainer}>
             {loading ? (
-              <ActivityIndicator size="large" color="blue" /> // Show loading indicator if data is still being fetched
+              <ActivityIndicator size="large" color="blue" />
             ) : (
               <FlatList
                 data={locationDetails}
@@ -86,7 +98,7 @@ const LocationListModal = ({ locModalVisible, hideLocModal, authState, selectedS
                 ItemSeparatorComponent={() => <View style={styles.separator} />}
               />
             )}
-            {!loading && ( // Only show the Close button when loading is done
+            {!loading && (
               <TouchableOpacity onPress={hideLocModal}>
                 <Text style={styles.closeButton}>Close</Text>
               </TouchableOpacity>
@@ -132,12 +144,12 @@ const styles = StyleSheet.create({
   },
   shapeContainer: {
     justifyContent: 'center',
-    alignItems: 'center', // Center items horizontally
+    alignItems: 'center',
     backgroundColor: "#333333",
     height: 24,
     width: 24,
     borderRadius: 50,
-    marginRight: 5, // Add margin to separate from the image
+    marginRight: 5,
   },
   completionsText: {
     color: 'white',

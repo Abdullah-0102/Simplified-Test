@@ -25,6 +25,7 @@ const Homepage = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedSurvey, setSelectedSurvey] = useState(null);
+  const [storeData, setStoreData] = useState([]); // New state for storing store data
 
 
   const { authState } = useContext(AuthContext);
@@ -38,12 +39,18 @@ const Homepage = ({ navigation }) => {
   useEffect(() => {
     const fetchSurveyData = async () => {
       try {
-        const response = await fetch("https://stapi.simplifiedtrade.com/app/v2/surveys/json");
-        if (!response.ok) {
+        const surveyResponse = await fetch("https://stapi.simplifiedtrade.com/app/v2/surveys/json");
+        const storeResponse = await fetch("https://stapi.simplifiedtrade.com/app/v2/stores/json");
+
+        if (!surveyResponse.ok || !storeResponse.ok) {
           throw new Error("Network response was not ok");
         }
-        const data = await response.json();
-        setSurveyData(data);  // Set the survey data from API response
+
+        const surveyData = await surveyResponse.json();
+        const storeData = await storeResponse.json();
+
+        setSurveyData(surveyData); // Set survey data
+        setStoreData(storeData);   // Set store data
       } catch (error) {
         setError(error.message);
       } finally {
@@ -221,9 +228,17 @@ const formatExpiryDate = (dateString) => {
     setLocModalVisible(!locModalVisible);
   };
 
-  const handleLocationNavigation = (locationName, survey) => {
+  const handleLocationNavigation = (locationName, survey, location) => {
     // Navigate to SpecificSurvey with location and selectedSurvey
-    navigation.navigate('SpecificSurvey', { location: locationName, selectedSurvey: survey });
+    const matchingStore = storeData.find(store => store.name === locationName);
+    const coordinates = matchingStore ? { lat: matchingStore.lat, lon: matchingStore.lon } : { lat: null, lon: null };
+
+    navigation.navigate('SpecificSurvey', { 
+      location: locationName, 
+      selectedSurvey: survey, 
+      selectedLocation: location,
+      coordinates // Pass the coordinates to the next screen
+    });
   };
 
   return (
@@ -315,8 +330,7 @@ const formatExpiryDate = (dateString) => {
                     const location = survey.completions.find(location =>
                       location.locationName.toLowerCase().includes(searchText.toLowerCase())
                     );
-                    console.log('hello');
-                    handleLocationNavigation(location.locationName, survey);
+                    handleLocationNavigation(location.locationName, survey, location);
                   } else {
                     handleLocationPress(survey);
                   }
@@ -324,7 +338,7 @@ const formatExpiryDate = (dateString) => {
                   <View style={styles.cardContent}>
                     <Text style={styles.cardTitle}>{survey.surveyName}</Text>
                     <Text style={styles.cardlocation}>{displayLocation}</Text>
-                    <View style={[styles.infoContainer, { width: survey.expiryDate.length * 7.3 }]}>
+                    <View style={[styles.infoContainer, { width: survey.expiryDate.length * 8.5 }]}>
                       <Text style={styles.infoText}>{formatExpiryDate(survey.expiryDate)}</Text>
                     </View>
                   </View>
@@ -349,7 +363,7 @@ const formatExpiryDate = (dateString) => {
         <TouchableWithoutFeedback>
           <View style={styles.modalOverlay}>
             <View style={styles.modalWrapper}>
-                <TapOnMyLocationSuggested onAddNewLocationPress={toggleLoc1Modal} onClose={toggleModal} onLocationSelect={handleLocationSelect}/>
+                <TapOnMyLocationSuggested onAddNewLocationPress={toggleLoc1Modal} onClose={toggleModal} onLocationSelect={handleLocationSelect} storeData={storeData}/>
             </View>
           </View>
         </TouchableWithoutFeedback>
@@ -535,6 +549,7 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     flex: 1,
+    width: '100%',
   },
   cardTitle: {
     fontSize: 12,
@@ -559,7 +574,7 @@ const styles = StyleSheet.create({
   infoText: {
     width: '100%',
     color: "black",
-    fontSize: 12,
+    fontSize: 11,
   },
   lightGrayText: {
     color: '#999999', // Light gray color

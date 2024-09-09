@@ -2,12 +2,10 @@ import React, { useState } from "react";
 import { Image, StyleSheet, View, FlatList, TouchableOpacity, TextInput, Alert, Modal, ScrollView } from "react-native";
 import Text from "../components/text";
 import LinearGradient from "react-native-linear-gradient";
-// import { launchImageLibrary } from 'react-native-image-picker';
-// import { request, PERMISSIONS } from 'react-native-permissions';
+import { BlurView } from '@react-native-community/blur';
 
 import * as ImagePicker from 'expo-image-picker';
-
-
+import { useCameraPermissions } from 'expo-camera';
 
 const AddNewLocation2 = ({ surveySelected, onClose, onLocationTap }) => {
   const [searchText, setSearchText] = useState("");
@@ -16,6 +14,7 @@ const AddNewLocation2 = ({ surveySelected, onClose, onLocationTap }) => {
   const [selectedImages, setSelectedImages] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
+  const [cameraPermissions, requestCameraPermissions] = useCameraPermissions();
 
   const locationsData = [
     { id: "1", locationName: "0012 Alb SCA (New)" },
@@ -60,65 +59,34 @@ const AddNewLocation2 = ({ surveySelected, onClose, onLocationTap }) => {
     </View>
   );
 
-
-  // const requestPermissions = (permission) => {
-  //   return request(permission).then(result => {
-  //     console.log("Result: " + result);
-  //     return result;  
-  //   }).catch(error => {
-  //     console.log("Permission request error: ", error);
-  //     throw error;  
-  //   });
-  // };
-
-  const handleImagePick = async () => {
+  const requestPermissions = async () => {
     try {
-      // let hasPermissions = await requestPermissions(PERMISSIONS.ANDROID.READ_MEDIA_IMAGES);
-      // console.log("Perm: " + hasPermissions);
-
-      // if (hasPermissions !== 'granted') {
-      //   Alert.alert('Permission Denied', 'Permission to access the gallery is required.');
-      //   throw new Error('Gallery permission denied');
-      // }
-
-      // const response = await launchImageLibrary({
-      //   mediaType: 'photo',
-      //   maxWidth: 300,
-      //   maxHeight: 300,
-      //   quality: 1,
-      //   selectionLimit: 0, // 0 means unlimited selection
-      // });
-
-      // if (response.didCancel) {
-      //   console.log('User cancelled image picker');
-      // } else if (response.errorMessage) {
-      //   console.log('ImagePicker Error: ', response.errorMessage);
-      //   throw new Error(response.errorMessage);
-      // } else if (response.assets && response.assets.length > 0) {
-      //   setSelectedImages([...selectedImages, ...response.assets.map(asset => asset.uri)]);
-      // } else {
-      //   console.log('Unknown error occurred');
-      //   throw new Error('Unknown error occurred');
-      // }
-      let result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,  // 'photo'
-        allowsEditing: false,
-        allowsMultipleSelection: true,
-        aspect: [4, 3],
-        quality: 1,
-        selectionLimit: 0, // unlimited selection
-        maxWidth: 300, // maximum width
-        maxHeight: 300, // maximum height
-      });
+      const { status: cameraStatus } = await requestCameraPermissions();
   
-      console.log(result);
-  
-      if (!result.canceled) {
-        // setImage(result.assets[0].uri);
-          setSelectedImages([...selectedImages, ...result.assets.map(asset => asset.uri)]);
+      if (cameraStatus !== 'granted') {
+        Alert.alert('Camera permissions are required to capture photos.');
+      } else {
+        handleImagePick(true);
       }
     } catch (error) {
-      console.log('Error while picking image: ', error);
+      console.error('Error requesting permissions:', error);
+    }
+  };
+
+  const handleImagePick = async (fromCamera) => {
+    try {
+      if (fromCamera) {
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: false,
+          quality: 1,
+        });
+
+        if (!result.canceled) {
+          setSelectedImages([...selectedImages, ...result.assets.map(asset => asset.uri)]);
+        }
+      }
+    } catch (error) {
+      console.log('Error while capturing image: ', error);
     }
   };
 
@@ -210,12 +178,12 @@ const AddNewLocation2 = ({ surveySelected, onClose, onLocationTap }) => {
         </TouchableOpacity>
   
         <Modal visible={isModalVisible} transparent={true} animationType="fade">
-          {/* <BlurView
+          <BlurView
             style={styles.blur}
             blurType="light"
             blurAmount={5}
             reducedTransparencyFallbackColor="white"
-          /> */}
+          />
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
               <ScrollView contentContainerStyle={styles.modalScrollView}>

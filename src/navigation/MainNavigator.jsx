@@ -1,7 +1,7 @@
-import React, { useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Login from '../screens/login';
 import ForgotPasswordScreen from '../screens/forgotPassword';
@@ -18,15 +18,34 @@ const Stack = createStackNavigator();
 
 const Navigator = () => {
   const { isFirstTimeUser, loading } = useContext(UserContext);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  if (loading) {
+  useEffect(() => {
+    const checkAuthToken = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (token) {
+          setIsLoggedIn(true); // Token exists, user is logged in
+        }
+      } catch (error) {
+        console.error('Error checking auth token:', error);
+      } finally {
+        setIsCheckingAuth(false); // Auth check completed
+      }
+    };
+
+    checkAuthToken();
+  }, []);
+
+  if (loading || isCheckingAuth) {
     // You can replace this with a more sophisticated loading indicator if you prefer
     return null;
   }
 
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName={isFirstTimeUser ? 'HowItWorks' : 'Login'}>
+      <Stack.Navigator initialRouteName={isFirstTimeUser ? 'HowItWorks' : isLoggedIn ? 'HomePage' : 'Login'}>
         <Stack.Screen
           name="HowItWorks"
           options={{ headerShown: false }}

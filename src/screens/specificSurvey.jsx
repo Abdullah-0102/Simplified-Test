@@ -2,82 +2,52 @@ import React, { useState } from "react";
 import { View, StyleSheet, Image, TouchableOpacity, Alert, Modal, ScrollView, Switch } from "react-native";
 import Text from "../components/text";
 import LinearGradient from "react-native-linear-gradient";
-// import { launchImageLibrary } from 'react-native-image-picker';
-// import { request, PERMISSIONS } from 'react-native-permissions';
 import { BlurView } from '@react-native-community/blur';
-
 import * as ImagePicker from 'expo-image-picker';
+import { useCameraPermissions } from 'expo-camera';
 
+import { useNavigation } from '@react-navigation/native';
 
 const SpecificSurvey = ({ route }) => {
-  const { selectedSurvey } = route.params; // Access the passed selectedSurvey object
+  const { selectedSurvey, selectedLocation, coordinates } = route.params;
   const title = selectedSurvey.surveyName;
   const [selectedImages, setSelectedImages] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isSubmitModalVisible, setIsSubmitModalVisible] = useState(false);
   const [sendNowActive, setSendNowActive] = useState(false);
-  const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false); // State for success modal
+  const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
+  const [cameraPermissions, requestCameraPermissions] = useCameraPermissions();
 
+  const navigation = useNavigation();
 
-
-  // const requestPermissions = (permission) => {
-  //   return request(permission).then(result => {
-  //     console.log("Result: " + result);
-  //     return result;  
-  //   }).catch(error => {
-  //     console.log("Permission request error: ", error);
-  //     throw error;  
-  //   });
-  // };
-
-  const handleImagePick = async () => {
+  const requestPermissions = async () => {
     try {
-      // let hasPermissions = await requestPermissions(PERMISSIONS.ANDROID.READ_MEDIA_IMAGES);
-      // console.log("Perm: " + hasPermissions);
-
-      // if (hasPermissions !== 'granted') {
-      //   Alert.alert('Permission Denied', 'Permission to access the gallery is required.');
-      //   throw new Error('Gallery permission denied');
-      // }
-
-      // const response = await launchImageLibrary({
-      //   mediaType: 'photo',
-      //   maxWidth: 300,
-      //   maxHeight: 300,
-      //   quality: 1,
-      //   selectionLimit: 0, // 0 means unlimited selection
-      // });
-
-      // if (response.didCancel) {
-      //   console.log('User cancelled image picker');
-      // } else if (response.errorMessage) {
-      //   console.log('ImagePicker Error: ', response.errorMessage);
-      //   throw new Error(response.errorMessage);
-      // } else if (response.assets && response.assets.length > 0) {
-      //   setSelectedImages([...selectedImages, ...response.assets.map(asset => asset.uri)]);
-      // } else {
-      //   console.log('Unknown error occurred');
-      //   throw new Error('Unknown error occurred');
-      // }
-      let result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,  // 'photo'
-        allowsEditing: false,
-        allowsMultipleSelection: true,
-        aspect: [4, 3],
-        quality: 1,
-        selectionLimit: 0, // unlimited selection
-        maxWidth: 300, // maximum width
-        maxHeight: 300, // maximum height
-      });
+      const { status: cameraStatus } = await requestCameraPermissions();
   
-      console.log(result);
-  
-      if (!result.canceled) {
-        // setImage(result.assets[0].uri);
-          setSelectedImages([...selectedImages, ...result.assets.map(asset => asset.uri)]);
+      if (cameraStatus !== 'granted') {
+        Alert.alert('Camera permissions are required to capture photos.');
+      } else {
+        handleImagePick(true);
       }
     } catch (error) {
-      console.log('Error while picking image: ', error);
+      console.error('Error requesting permissions:', error);
+    }
+  };
+
+  const handleImagePick = async (fromCamera) => {
+    try {
+      if (fromCamera) {
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: false,
+          quality: 1,
+        });
+
+        if (!result.canceled) {
+          setSelectedImages([...selectedImages, ...result.assets.map(asset => asset.uri)]);
+        }
+      }
+    } catch (error) {
+      console.log('Error while capturing image: ', error);
     }
   };
 
@@ -101,19 +71,52 @@ const SpecificSurvey = ({ route }) => {
     setIsSuccessModalVisible(!isSuccessModalVisible);
   };
 
+  const submitSurvey = async () => {
+    const { surId } = selectedLocation;
+    const { lat, lon } = coordinates;
+  
+    console.log('Submitting survey...');
+    console.log(`Survey ID: ${surId}`);
+    console.log(`Latitude: ${lat}`);
+    console.log(`Longitude: ${lon}`);
+  
+    try {
+      const response = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/start/${lat}/${lon}`, {
+        method: 'PATCH',
+      });
+  
+      console.log('Response received:', response);
+  
+      if (response.ok) {
+        // Handle successful response
+        if (response.status === 201) {
+          console.log('Survey submitted successfully.');
+          // No need to parse response if it's empty
+          toggleSubmitModal(); // Close the submit modal
+          toggleSuccessModal(); // Show success modal
+        } else {
+          console.log('Submission failed. Status code:', response.status);
+          Alert.alert('Submission failed', 'There was an error submitting the survey. Please try again.');
+        }
+      } else {
+        // Handle HTTP errors
+        console.log('HTTP error:', response.status, response.statusText);
+        Alert.alert('Submission failed', 'There was an error submitting the survey. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error submitting survey:', error);
+      Alert.alert('Submission failed', 'There was an error submitting the survey. Please try again.');
+    }
+  };
+  
+  
 
   return (
     <View style={styles.container}>
       <View style={styles.card}>
         <Text style={styles.title}>{title}</Text>
-        {console.log(title)}
         <View style={styles.gradientContainer}>
-          <View
-            style={[
-              styles.greyGradient,
-              styles.gradientPosition,
-            ]}
-          />
+          <View style={[styles.greyGradient, styles.gradientPosition]} />
           <LinearGradient
             style={[styles.gradient, styles.gradientPosition]}
             locations={[0, 1]}
@@ -134,85 +137,54 @@ const SpecificSurvey = ({ route }) => {
         </View>
       </View>
 
-        <View style={[styles.uploadContainer, styles.card]}>
-          {selectedImages.length === 0 ? (
-            <Image
-              style={styles.groupIcon}
-              resizeMode="cover"
-              source={require("../images/upload.png")}
-            />
-          ) : (
-            <View style={styles.selectedImagesContainer}>
-              {selectedImages.slice(0, 2).map((uri, index) => (
-                <View key={index} style={styles.imageWrapper}>
-                  <Image
-                    style={styles.selectedImage}
-                    resizeMode="cover"
-                    source={{ uri }}
-                  />
-                  <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(uri)}>
-                    <Text style={styles.removeImageText}>×</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-              {selectedImages.length > 2 && (
-                <TouchableOpacity onPress={toggleModal}>
-                  <Text style={styles.moreImagesText}>+{selectedImages.length - 2} more</Text>
+      <View style={[styles.uploadContainer, styles.card]}>
+        {selectedImages.length === 0 ? (
+          <Image
+            style={styles.groupIcon}
+            resizeMode="cover"
+            source={require("../images/upload.png")}
+          />
+        ) : (
+          <View style={styles.selectedImagesContainer}>
+            {selectedImages.slice(0, 2).map((uri, index) => (
+              <View key={index} style={styles.imageWrapper}>
+                <Image
+                  style={styles.selectedImage}
+                  resizeMode="cover"
+                  source={{ uri }}
+                />
+                <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(uri)}>
+                  <Text style={styles.removeImageText}>×</Text>
                 </TouchableOpacity>
-              )}
-            </View>
-          )}
+              </View>
+            ))}
+            {selectedImages.length > 2 && (
+              <TouchableOpacity onPress={toggleModal}>
+                <Text style={styles.moreImagesText}>+{selectedImages.length - 2} more</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-          {selectedImages.length > 0 && (
-            <TouchableOpacity style={styles.addMoreButton} onPress={handleImagePick}>
-              <Text style={styles.addMoreButtonText}>Add more +</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity onPress={handleImagePick}>
-            <View style={styles.textContainer}>
-              <Text style={[styles.text2, styles.typo]}>Upload Photo</Text>
-              <Text style={[styles.text3, styles.typo]}>
-                Take one or more photos
-              </Text>
-            </View>
+        {selectedImages.length > 0 && (
+          <TouchableOpacity style={styles.addMoreButton} onPress={requestPermissions}>
+            <Text style={styles.addMoreButtonText}>Add more +</Text>
           </TouchableOpacity>
-        </View>
+        )}
+
+        <TouchableOpacity onPress={requestPermissions}>
+          <View style={styles.textContainer}>
+            <Text style={[styles.text2, styles.typo]}>Upload Photo</Text>
+            <Text style={[styles.text3, styles.typo]}>
+              Take one or more photos
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity style={styles.nextButton} onPress={toggleSubmitModal}>
         <Text style={[styles.next, styles.typo]}>Next</Text>
       </TouchableOpacity>
-
-      <Modal visible={isModalVisible} transparent={true} animationType="fade">
-        <BlurView
-          style={styles.blur}
-          blurType="light"
-          blurAmount={5}
-          reducedTransparencyFallbackColor="white"
-        />
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <ScrollView contentContainerStyle={styles.modalScrollView}>
-              {selectedImages.map((uri, index) => (
-                <View key={index} style={styles.modalImageWrapper}>
-                  <Image
-                    style={styles.modalImage}
-                    resizeMode="cover"
-                    source={{ uri }}
-                  />
-                  <TouchableOpacity style={styles.removeImageButtonModal} onPress={() => removeImage(uri)}>
-                    <Text style={styles.removeImageTextModal}>×</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-            <TouchableOpacity style={styles.closeModalButton} onPress={toggleModal}>
-              <Text style={styles.closeModalButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
 
       {/* Success Modal */}
       <Modal visible={isSuccessModalVisible} transparent={true} animationType="fade">
@@ -230,63 +202,87 @@ const SpecificSurvey = ({ route }) => {
               resizeMode="cover"
             />
             <Text style={styles.successText}>Survey Submitted Successfully</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={toggleSuccessModal}>
+            <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
-    </Modal>
-
+      </Modal>
 
       {/* Survey Modal */}
-        <Modal visible={isSubmitModalVisible} transparent={true} animationType="fade">
-          <BlurView
-            style={styles.blurBackground}
-            blurType="light"
-            blurAmount={2}
-            reducedTransparencyFallbackColor="white"
-          />
-            <View style={styles.bottomModal}>
-              <View style={styles.surveyParent}>
-                <Text style={styles.survey}>Survey</Text>
-                <TouchableOpacity onPress={toggleSubmitModal}>
-                  <Image
-                    style={styles.iconX}
-                    resizeMode="cover"
-                    source={require("../images/cross.png")}
-                  />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.rectangle} />
-              <View style={styles.textGroup}>
-                <Text style={styles.text4}>Recurring Reload Copying 2 Survey Machine</Text>
-                <View style={styles.frameView}>
-                  <TouchableOpacity style={styles.sendNowParent} onPress={toggleSendNow}>
-                    <Text style={styles.sendNow}>Send Now</Text>
-                    <View style={styles.switchContainer}>
-                      <Switch
-                        trackColor={{ false: '#767577', true: '#81b0ff' }}
-                        thumbColor={sendNowActive ? '#007bff' : '#f4f3f4'}
-                        onValueChange={toggleSendNow}
-                        value={sendNowActive}
-                        style={styles.switch} 
-                        touchSoundDisabled={true}
-                      />
-                    </View>
-                  </TouchableOpacity>
-                  <Text style={[styles.text5, sendNowActive ? styles.textActive : styles.textInactive]}>
-                    {sendNowActive ? "Results will be sent now." : "You can send later."}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.typebuttonType2secondary1} onPress={() => {
-                toggleSubmitModal(); // Close the submit modal
-                toggleSuccessModal(); // Show success modal
-              }}>
-                <Text style={styles.submitSurveyText}>Submit Survey</Text>
+      <Modal visible={isSubmitModalVisible} transparent={true} animationType="fade">
+        <BlurView
+          style={styles.blurBackground}
+          blurType="light"
+          blurAmount={2}
+          reducedTransparencyFallbackColor="white"
+        />
+          <View style={styles.bottomModal}>
+            <View style={styles.surveyParent}>
+              <Text style={styles.survey}>Survey</Text>
+              <TouchableOpacity onPress={toggleSubmitModal}>
+                <Image
+                  style={styles.iconX}
+                  resizeMode="cover"
+                  source={require("../images/cross.png")}
+                />
               </TouchableOpacity>
             </View>
-        </Modal>
+            <View style={styles.rectangle} />
+            <View style={styles.textGroup}>
+              <Text style={styles.text4}>Recurring Reload Copying 2 Survey Machine</Text>
+              <View style={styles.frameView}>
+                <TouchableOpacity style={styles.sendNowParent} onPress={toggleSendNow}>
+                  <Text style={styles.sendNow}>Send Now</Text>
+                  <View style={styles.switchContainer}>
+                    <Switch
+                      trackColor={{ false: '#767577', true: '#81b0ff' }}
+                      thumbColor={sendNowActive ? '#007bff' : '#f4f3f4'}
+                      onValueChange={toggleSendNow}
+                      value={sendNowActive}
+                      style={styles.switch} 
+                      touchSoundDisabled={true}
+                    />
+                  </View>
+                </TouchableOpacity>
+                <Text style={[styles.text5, sendNowActive ? styles.textActive : styles.textInactive]}>
+                  {sendNowActive ? "Results will be sent now." : "You can send later."}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.typebuttonType2secondary1} onPress={submitSurvey}>
+              <Text style={styles.submitSurveyText}>Submit Survey</Text>
+            </TouchableOpacity>
+          </View>
+      </Modal>
+
+      {/* Showing Selected Images Modal */}
+      <Modal visible={isModalVisible} transparent={true} animationType="fade">
+        <BlurView
+          style={styles.blur}
+          blurType="light"
+          blurAmount={5}
+          reducedTransparencyFallbackColor="white"
+        />
+        <View style={styles.modalContainer}>
+          <ScrollView contentContainerStyle={styles.modalScrollView}>
+            {selectedImages.map((uri, index) => (
+              <View key={index} style={styles.modalImageWrapper}>
+                <Image
+                  style={styles.modalImage}
+                  source={{ uri }}
+                />
+                <TouchableOpacity style={styles.modalRemoveButton} onPress={() => removeImage(uri)}>
+                  <Text style={styles.modalRemoveText}>×</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+          <TouchableOpacity style={styles.closeButton} onPress={toggleModal}>
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -605,6 +601,25 @@ const styles = StyleSheet.create({
   submitSurveyText: {
     fontSize: 16,
     color: "white",
+  },
+
+  selectionOption: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+    width: '100%',
+  },
+  selectionText: {
+    fontSize: 16,
+    color: '#007bff',
+  },
+  closeModalButton: {
+    padding: 15,
+  },
+  closeModalButtonText: {
+    color: '#ff0000',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });
 

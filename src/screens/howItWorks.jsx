@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useRef } from "react";
 import { View, Image, StyleSheet, TouchableOpacity } from "react-native";
 import Text from "../components/text";
 import { useNavigation } from "@react-navigation/native";
@@ -8,7 +8,8 @@ import { UserContext } from '../contexts/userContext';
 const HowItWorks = () => {
   const navigation = useNavigation();
   const [isPlaying, setIsPlaying] = useState(false);
-  const { isFirstTimeUser, setIsFirstTimeUser ,loading } = useContext(UserContext);
+  const { isFirstTimeUser, setIsFirstTimeUser, loading } = useContext(UserContext);
+  const videoRef = useRef(null); // Create a reference for the video player
 
   const handleBackPress = () => {
     navigation.navigate('HomePage');
@@ -20,11 +21,22 @@ const HowItWorks = () => {
   };
 
   const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
+    if (isPlaying) {
+      setIsPlaying(false); // Pause the video
+    } else {
+      if (videoRef.current) {
+        videoRef.current.seek(0); // Reset video to the start
+      }
+      setIsPlaying(true); // Play the video
+    }
   };
 
   const navigateToGetHelp = () => {
     navigation.navigate('GetHelp'); // Navigate to the GetHelp screen
+  };
+
+  const handleVideoEnd = () => {
+    setIsPlaying(false); // Show the play button again when the video ends
   };
 
   if (loading) {
@@ -40,7 +52,7 @@ const HowItWorks = () => {
       <View style={styles.topRow}>
         {isFirstTimeUser ? (
           <TouchableOpacity onPress={handleForwardPress}>
-            <Text style={styles.subtitle}>Next</Text>
+            <Text style={styles.subtitle}>Dismiss</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity onPress={handleBackPress}>
@@ -60,14 +72,14 @@ const HowItWorks = () => {
       </View>
       <Step
         stepNumber="01"
-        title="Choose Survey"
-        description="Select the survey from & view all locations"
+        title="Choose Location"
+        description="Select the GPS store locator and verify store"
         separatorPosition="top"
       />
       <Step
         stepNumber="02"
-        title="Choose Location"
-        description="Select the location from the locations given"
+        title="Choose Survey"
+        description="Select the survey you want to complete first"
         separatorPosition="middle"
       />
       <Step
@@ -82,18 +94,17 @@ const HowItWorks = () => {
           resizeMode="contain"
           source={require("../images/device.png")}
         />
-        <TouchableOpacity 
-          style={styles.deviceScreen} 
+        <TouchableOpacity
+          style={styles.deviceScreen}
           onPress={handlePlayPause}
         >
           <Video
             source={require("../images/video.mp4")}
-            ref={(ref) => {
-              this.player = ref;
-            }}
+            ref={videoRef} // Reference to the video player
             style={styles.insidePicture}
             paused={!isPlaying}
             resizeMode="cover"
+            onEnd={handleVideoEnd} // Handle video end event
           />
           {!isPlaying && (
             <TouchableOpacity style={styles.playButton} onPress={handlePlayPause}>
@@ -143,6 +154,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FEFEFE",
+    paddingTop: 15,
   },
   topRow: {
     flexDirection: "row",
@@ -164,7 +176,7 @@ const styles = StyleSheet.create({
     marginLeft: 15,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 15,
     color: "#000000",
     fontFamily: "Outfit-Regular",
     textAlign: "center",

@@ -3142,14 +3142,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@react-native-async-storage/async-storage@npm:^1.24.0":
-  version: 1.24.0
-  resolution: "@react-native-async-storage/async-storage@npm:1.24.0"
+"@react-native-async-storage/async-storage@npm:1.23.1":
+  version: 1.23.1
+  resolution: "@react-native-async-storage/async-storage@npm:1.23.1"
   dependencies:
     merge-options: ^3.0.4
   peerDependencies:
     react-native: ^0.0.0-0 || >=0.60 <1.0
-  checksum: 7e56a2e97f48332f57c56ebf473b763c7ca2b1ef82f4b5f8e1c73350231ec91b8eafc4e4d1f972c4c1005da0d304816fa725dc6f07a8a7543e90f8bd16c22ab4
+  checksum: 7096546ed4a5faf1f6e0425e2e15713575f1a7493a04524da386ff35c3844b57b8fd20544fad4157b4a61e048b10235f2f06124f262da5b327edc74fbc31e02b
   languageName: node
   linkType: hard
 
@@ -3341,6 +3341,16 @@ __metadata:
   bin:
     rnc-cli: build/bin.js
   checksum: 5e997b50fd687b4f3fcdde6a1fd36317ffee5536649fb16e87f6e3bb1bd56a279daad57b7d904d0442425106f048a114e3987f9a0fc8dc3fadd0a784dcb83a40
+  languageName: node
+  linkType: hard
+
+"@react-native-community/geolocation@npm:^3.3.0":
+  version: 3.3.0
+  resolution: "@react-native-community/geolocation@npm:3.3.0"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: a0920ff7ff2f9f24300a8eabd641fd5bd9124a8a5274f0077d64bc143111c925986eaf7c29fa25b6b0daaebb780ebf1aeee12e908584fe200fc619e30de330c6
   languageName: node
   linkType: hard
 
@@ -11482,6 +11492,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-android-location-enabler@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "react-native-android-location-enabler@npm:2.0.1"
+  peerDependencies:
+    react: ">= 18.2.0"
+    react-native: ">= 0.71.0"
+  checksum: 077d5367def5d9a4186701c8b8427911f631323db5b954ac9262abbf5af5260e6b64f193f45f7777fe59130c4d980e307298af34e81d4ae9331dba745ce06a92
+  languageName: node
+  linkType: hard
+
 "react-native-animatable@npm:1.3.3":
   version: 1.3.3
   resolution: "react-native-animatable@npm:1.3.3"
@@ -12390,8 +12410,9 @@ __metadata:
     "@babel/core": ^7.20.0
     "@babel/preset-env": ^7.20.0
     "@babel/runtime": ^7.20.0
-    "@react-native-async-storage/async-storage": ^1.24.0
+    "@react-native-async-storage/async-storage": 1.23.1
     "@react-native-community/blur": ^4.4.0
+    "@react-native-community/geolocation": ^3.3.0
     "@react-native/babel-preset": 0.74.85
     "@react-native/eslint-config": 0.74.85
     "@react-native/metro-config": 0.74.85
@@ -12416,6 +12437,7 @@ __metadata:
     prettier: 2.8.8
     react: 18.2.0
     react-native: 0.74.3
+    react-native-android-location-enabler: ^2.0.1
     react-native-gesture-handler: ^2.16.2
     react-native-image-picker: ^7.1.2
     react-native-linear-gradient: ^2.8.3
