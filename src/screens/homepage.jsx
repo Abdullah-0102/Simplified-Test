@@ -3,6 +3,7 @@ import { StyleSheet, View, ScrollView, TextInput, TouchableOpacity, Modal, Touch
 import { Image } from 'expo-image';
 import LinearGradient from "react-native-linear-gradient";
 import Text from '../components/text';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import TapOnMyLocationSuggested from "./tapOnLocation";
 import AddNewLocation1 from "./addNewLocation-1";
@@ -12,7 +13,7 @@ import LocationListModal from "../components/locationListModal";
 
 import { AuthContext } from "../contexts/authContext";
 
-const Homepage = ({ navigation }) => {
+const Homepage = ({ navigation, route }) => {
   const [searchText, setSearchText] = useState("");
   const [isModalVisible, setIsModalVisible] = useState(false); 
   const [loc1Model, setLoc1Model] = useState(false); 
@@ -26,6 +27,7 @@ const Homepage = ({ navigation }) => {
   const [error, setError] = useState(null);
   const [selectedSurvey, setSelectedSurvey] = useState(null);
   const [storeData, setStoreData] = useState([]); // New state for storing store data
+  const [token, setToken] = useState(route.params?.token || ''); // Use token from route or empty string
 
 
   const { authState } = useContext(AuthContext);
@@ -34,21 +36,42 @@ const Homepage = ({ navigation }) => {
   const locationsObject = authState.locations || {};
   const locationNames = Object.values(locationsObject).flatMap(loc => Object.values(loc));  // Extract location names from nested objects
 
+  useEffect(() => {
+    const fetchToken = async () => {
+      if (!token) {
+        const storedToken = await AsyncStorage.getItem('userToken');
+        if (storedToken) {
+          setToken(storedToken); // Set token from AsyncStorage if available
+        } else {
+          // If no token is available, redirect to the login screen
+          navigation.navigate('Login');
+        }
+      }
+    };
+
+    fetchToken();
+  }, [token]);
 
 
   useEffect(() => {
     const fetchSurveyData = async () => {
       try {
-        const surveyResponse = await fetch("https://stapi.simplifiedtrade.com/app/v2/surveys/json");
+        const surveyResponse = await fetch("https://stapi.simplifiedtrade.com/app/v2/surveys/json", {
+          method: 'GET',
+          headers: {
+            'x-st3-token': "TVgxL2w5YjBiN05RWnNGRmhibEg4Z2wxc3hML21RN0dqSkFESVJCZFpQcTYwQklyQ3VjTzEwUGsxWlNDUnZFdzloOGxzL1A5Z1F5ZGRHQXhRWTVMQ0E9PQ==",
+            'Content-Type': 'application/json', // Optional, depending on your API requirements
+          },
+        });
         const storeResponse = await fetch("https://stapi.simplifiedtrade.com/app/v2/stores/json");
-
+  
         if (!surveyResponse.ok || !storeResponse.ok) {
           throw new Error("Network response was not ok");
         }
-
+  
         const surveyData = await surveyResponse.json();
         const storeData = await storeResponse.json();
-
+    
         setSurveyData(surveyData); // Set survey data
         setStoreData(storeData);   // Set store data
       } catch (error) {
@@ -57,9 +80,10 @@ const Homepage = ({ navigation }) => {
         setLoading(false);
       }
     };
-
+  
     fetchSurveyData();
   }, []);
+  
 
 
 
@@ -186,25 +210,25 @@ const Homepage = ({ navigation }) => {
   }
 
   // Utility function to get the ordinal suffix for the day (e.g., 'st', 'nd', 'rd', 'th')
-const getOrdinalSuffix = (day) => {
-  if (day > 3 && day < 21) return 'th'; // For 11th, 12th, 13th, etc.
-  switch (day % 10) {
-    case 1: return 'st';
-    case 2: return 'nd';
-    case 3: return 'rd';
-    default: return 'th';
-  }
-};
+  const getOrdinalSuffix = (day) => {
+    if (day > 3 && day < 21) return 'th'; // For 11th, 12th, 13th, etc.
+    switch (day % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
+  };
 
-// Function to format the expiry date
-const formatExpiryDate = (dateString) => {
-  const date = new Date(dateString);
-  const day = date.getDate();
-  const month = date.toLocaleString('default', { month: 'long' });
-  const year = date.getFullYear();
-  
-  return `Ends ${month} ${day}${getOrdinalSuffix(day)}, ${year}`;
-};
+  // Function to format the expiry date
+  const formatExpiryDate = (dateString) => {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    const month = date.toLocaleString('default', { month: 'long' });
+    const year = date.getFullYear();
+    
+    return `Ends ${month} ${day}${getOrdinalSuffix(day)}, ${year}`;
+  };
 
 
   const filteredSurveys = searchText.trim() === ""
@@ -237,6 +261,7 @@ const formatExpiryDate = (dateString) => {
       location: locationName, 
       selectedSurvey: survey, 
       selectedLocation: location,
+      token: token,
       coordinates // Pass the coordinates to the next screen
     });
   };

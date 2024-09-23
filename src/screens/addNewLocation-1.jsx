@@ -244,10 +244,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#C0C0C0',
     position: 'absolute',
     top: 15,
-    left: 0,
+    // left: -10,
   },
   statusBarLineInactive1: {
-    width: 50,
+    width: 100,
     height: 2,
     backgroundColor: '#C0C0C0',
     position: 'absolute',
