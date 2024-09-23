@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -26,6 +26,19 @@ const Login = () => {
   const { login } = useContext(AuthContext);
 
   const navigation = useNavigation();
+
+  // Check if token exists when the app starts
+  useEffect(() => {
+    const checkToken = async () => {
+      const token = await AsyncStorage.getItem('userToken');
+      if (token) {
+        // Navigate to HomePage if token is found
+        navigation.navigate('HomePage', { token });
+      }
+    };
+
+    checkToken();
+  }, []);
 
   const handleForgotPassword = () => {
     navigation.navigate('ForgotPasswordScreen');
@@ -55,8 +68,16 @@ const Login = () => {
   
       if (response.data.success) {
         login(response.data);
-        navigation.navigate('HomePage');
-      } else {
+        const token = response.data.token;
+        console.log('Token:', token); // Log the token
+
+        // Store token in AsyncStorage
+        await AsyncStorage.setItem('userToken', token);
+
+        console.log('Navigating to HomePage with token:', token);
+        navigation.navigate('HomePage', { token: token });
+      } 
+      else {
         Alert.alert('Login Failed', 'Invalid email or password.');
       }
     } catch (error) {
