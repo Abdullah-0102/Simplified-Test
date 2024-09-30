@@ -1,17 +1,31 @@
 import React, { useState, useEffect } from "react";
-import { View, StyleSheet, Image, TouchableOpacity, Alert, Modal, ScrollView, Switch, TextInput, Animated, ActivityIndicator } from "react-native";
+import {
+  View,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  ScrollView,
+  Switch,
+  TextInput,
+  Animated,
+  ActivityIndicator,
+  Keyboard,
+  Platform,
+} from "react-native";
 import Text from "../components/text";
 import LinearGradient from "react-native-linear-gradient";
-import { BlurView } from '@react-native-community/blur';
-import * as ImagePicker from 'expo-image-picker';
-import { useCameraPermissions } from 'expo-camera';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from "@react-native-community/blur";
+import * as ImagePicker from "expo-image-picker";
+import { useCameraPermissions } from "expo-camera";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
-import { useNavigation } from '@react-navigation/native';
-
+import { useNavigation } from "@react-navigation/native";
 const SpecificSurvey = ({ route }) => {
   const { selectedSurvey, selectedLocation, coordinates } = route.params;
-  const [token, setToken] = useState(route.params?.token || ''); // Use token from route or empty string
+  const [token, setToken] = useState(route.params?.token || ""); // Use token from route or empty string
   const title = selectedSurvey.surveyName;
   const [selectedImages, setSelectedImages] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -26,40 +40,56 @@ const SpecificSurvey = ({ route }) => {
   const [selectedOption, setSelectedOption] = useState(null);
   const [animationValue] = useState(new Animated.Value(1));
 
-  const [date, setDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [date, setDate] = useState(null);
+  const [datePicker, setDatePicker] = useState("Set Date");
+  const [mode, setMode] = useState("date");
+  const [show, setShow] = useState(false);
 
+  const [keyboardOpen, setKeyboardOpen] = useState(false); //keyboard open start
+
+  const [progressPercentage, setProgressPercentage] = useState(0); //progress percentage
 
   useEffect(() => {
     const fetchToken = async () => {
       if (!token) {
-        const storedToken = await AsyncStorage.getItem('userToken');
+        const storedToken = await AsyncStorage.getItem("userToken");
         if (storedToken) {
           setToken(storedToken); // Set token from AsyncStorage if available
         } else {
           // If no token is available, redirect to the login screen
-          navigation.navigate('Login');
+          navigation.navigate("Login");
         }
       }
     };
-
     fetchToken();
+
+    // const formattedDate = formatDate(new Date());
+    // setDatePicker(formattedDate);
+
+    const keyboardDidShowListener = Keyboard.addListener(
+      "keyboardDidShow",
+      () => {
+        setKeyboardOpen(true);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      "keyboardDidHide",
+      () => {
+        setKeyboardOpen(false);
+      }
+    );
+
+    return () => {
+      keyboardDidHideListener.remove();
+      keyboardDidShowListener.remove();
+    };
   }, [token]);
 
-
-  const onChangeDate = (event, selectedDate) => {
-    const currentDate = selectedDate || date;
-    setShowDatePicker(false);
-    setDate(currentDate);
-    handleAnswerChange(currentDate.toISOString(), questions[currentQuestionIndex]);
-  };
-
-  
   const navigation = useNavigation();
-  
+
   const questions = selectedSurvey.surveyQuestions.map((question, index) => ({
     ...question,
-    id: index // Assigning ID based on the index
+    id: index, // Assigning ID based on the index
   }));
   // const questions = selectedSurvey.surveyQuestions;
 
@@ -73,225 +103,255 @@ const SpecificSurvey = ({ route }) => {
     const question = questions[currentQuestionIndex];
     console.log(answers);
     if (question.isRequired) {
-      if (question.pluginCode === 'CHO1') {
+      if (question.pluginCode === "CHO1") {
         return selectedOption !== null; // For single choice
-      } 
-      else if (question.pluginCode === 'CHOM') {
+      } else if (question.pluginCode === "CHOM") {
         return (answers[question.pluginCode] || []).length > 0; // For multiple choice
-      } 
-      else if (question.pluginCode === 'TXT') {
-        return answers[question.pluginCode] && answers[question.pluginCode].length > 0; // For text input
-      } 
-      else if (question.pluginCode === 'MNY') { // For monetary input
+      } else if (question.pluginCode === "TXT") {
+        return (
+          answers[question.pluginCode] &&
+          answers[question.pluginCode].length > 0
+        ); // For text input
+      } else if (question.pluginCode === "MNY") {
+        // For monetary input
         const answer = answers[question.pluginCode];
-        return answer !== undefined && String(answer).trim() !== '' && !isNaN(answer); // Check if it's a valid number
-      }
-      else if (question.pluginCode === 'NUM') { // For monetary input
+        return (
+          answer !== undefined && String(answer).trim() !== "" && !isNaN(answer)
+        ); // Check if it's a valid number
+      } else if (question.pluginCode === "NUM") {
+        // For monetary input
         const answer = answers[question.pluginCode];
-        return answer !== undefined && String(answer).trim() !== '' && !isNaN(answer); // Check if it's a valid number
-      }
-      else if (question.pluginCode === 'STR5') {
+        return (
+          answer !== undefined && String(answer).trim() !== "" && !isNaN(answer)
+        ); // Check if it's a valid number
+      } else if (question.pluginCode === "STR5") {
         // Ensure that the selectedOption is checked correctly
         console.log("Star Rating Selected:", selectedOption);
         return selectedOption !== null; // For star rating
-    }
-    
-      // else if (question.pluginCode === 'DATE') {
-        // return answers[question.pluginCode] !== undefined; // For date input
-      // }
+      } else if (question.pluginCode === "DATE") {
+        return answers[question.pluginCode] !== undefined; // For date input
+      }
       // Add other question types as needed
     }
     return true; // If not required or already answered
   };
-  
+
   const goToNextQuestion = () => {
     if (isCurrentQuestionAnswered()) {
-      if (currentQuestionIndex < questions.length - 1) {
-        setCurrentQuestionIndex(currentQuestionIndex + 1);
+      const totalQuestions = questions.length;
+      const nextQuestionIndex = currentQuestionIndex + 1;
+  
+      if (nextQuestionIndex < totalQuestions) {
+        // Update the current question index
+        setCurrentQuestionIndex(nextQuestionIndex);
+  
+        // Calculate the new progress percentage
+        const newProgress = ((nextQuestionIndex + 1) / totalQuestions) * 100;
+        setProgressPercentage(newProgress);
       } else {
-        toggleModal(); // Show image upload modal
+        // If there are no more questions, show the image upload modal
+        toggleModal();
       }
     }
   };
-  const nextButtonStyle = isCurrentQuestionAnswered() ? styles.nextButtonn : styles.nextButtonDisabled;
-
+  const nextButtonStyle = isCurrentQuestionAnswered()
+    ? styles.nextButtonn
+    : styles.nextButtonDisabled;
 
   const getRatingText = (rating) => {
     switch (rating) {
-        case 1:
-            return "Poor";
-        case 2:
-            return "Average";
-        case 3:
-            return "Good";
-        case 4:
-            return "Very Good";
-        case 5:
-            return "Excellent";
-        default:
-            return "";
-      }
+      case 1:
+        return "Poor";
+      case 2:
+        return "Average";
+      case 3:
+        return "Good";
+      case 4:
+        return "Very Good";
+      case 5:
+        return "Excellent";
+      default:
+        return "";
+    }
   };
 
   const handleStarRatingChange = (rating) => {
     setSelectedOption(rating); // Update selected option to the clicked star
     handleAnswerChange(rating, questions[currentQuestionIndex]); // Store the rating in answers
   };
-
-
-
-
   const handleAnswerChange = (option, question) => {
-    if (question.pluginCode === 'CHO1') {
+    if (question.pluginCode === "CHO1") {
       // Check if the selected option is already the current selection
       if (answers[question.pluginCode] === option) {
-          // Deselect the option by setting it to null or an equivalent value
-          setAnswers((prevAnswers) => ({
-              ...prevAnswers,
-              [question.pluginCode]: null, // or use '' or any other value to represent no selection
-          }));
-          setSelectedOption(null); // Update selected option for rendering
-      } 
-      else {
-          // Store the selected option in the answers state
-          setAnswers((prevAnswers) => ({
-              ...prevAnswers,
-              [question.pluginCode]: option, // Store the selected option directly
-          }));
-          setSelectedOption(option); // Update selected option for rendering
-        }
-    } 
-    else if (question.pluginCode === 'MNY') {
-        // Update the answers state with the monetary input
+        // Deselect the option by setting it to null or an equivalent value
         setAnswers((prevAnswers) => ({
-            ...prevAnswers,
-            [question.pluginCode]: option, // Store the monetary input
+          ...prevAnswers,
+          [question.pluginCode]: null, // or use '' or any other value to represent no selection
         }));
-    } 
-    else if (question.pluginCode === 'NUM') {
-        // Update the answers state with the monetary input
+        setSelectedOption(null); // Update selected option for rendering
+      } else {
+        // Store the selected option in the answers state
         setAnswers((prevAnswers) => ({
-            ...prevAnswers,
-            [question.pluginCode]: option, // Store the monetary input
+          ...prevAnswers,
+          [question.pluginCode]: option, // Store the selected option directly
         }));
-    } 
-    else if (question.pluginCode === 'DATE') {
-        setAnswers((prevAnswers) => ({
-            ...prevAnswers,
-            [question.pluginCode]: option, // Store the selected date
-        }));
-    } 
-    else if (question.pluginCode === 'STR5') {
+        setSelectedOption(option); // Update selected option for rendering
+      }
+    } else if (question.pluginCode === "MNY") {
+      // Update the answers state with the monetary input
+      setAnswers((prevAnswers) => ({
+        ...prevAnswers,
+        [question.pluginCode]: option, // Store the monetary input
+      }));
+    } else if (question.pluginCode === "NUM") {
+      // Update the answers state with the monetary input
+      setAnswers((prevAnswers) => ({
+        ...prevAnswers,
+        [question.pluginCode]: option, // Store the monetary input
+      }));
+    } else if (question.pluginCode === "DATE") {
+      // Store the selected date
+      setAnswers((prevAnswers) => ({
+        ...prevAnswers,
+        [question.pluginCode]: option, // Store the selected date here
+      }));
+    } else if (question.pluginCode === "STR5") {
       // Handle star rating selection
       if (answers[question.pluginCode] === option) {
         // Deselect if the same star is clicked
-          setSelectedOption(null);
-          setAnswers((prevAnswers) => ({
-              ...prevAnswers,
-              [question.pluginCode]: null, // or any value to represent no selection
-          }));
+        setSelectedOption(null);
+        setAnswers((prevAnswers) => ({
+          ...prevAnswers,
+          [question.pluginCode]: null, // or any value to represent no selection
+        }));
       } else {
-          setSelectedOption(option); // Update selected option for rendering
-          setAnswers((prevAnswers) => ({
-              ...prevAnswers,
-              [question.pluginCode]: option, // Store the selected star rating
-          }));
+        setSelectedOption(option); // Update selected option for rendering
+        setAnswers((prevAnswers) => ({
+          ...prevAnswers,
+          [question.pluginCode]: option, // Store the selected star rating
+        }));
       }
-    }
-    else if (question.pluginCode === 'TXT') {
+    } else if (question.pluginCode === "TXT") {
       // Store the answer as a single value instead of an array
       setAnswers((prevAnswers) => ({
-          ...prevAnswers,
-          [question.pluginCode]: option, // Store the text directly as a string
+        ...prevAnswers,
+        [question.pluginCode]: option, // Store the text directly as a string
       }));
-    } 
-    else {
-        const currentAnswers = answers[question.pluginCode] || [];
-        if (currentAnswers.includes(option)) {
-            // Remove from selection
-            setAnswers((prevAnswers) => ({
-                ...prevAnswers,
-                [question.pluginCode]: currentAnswers.filter(ans => ans !== option),
-            }));
-        } else {
-            // Add to selection
-            setAnswers((prevAnswers) => ({
-                ...prevAnswers,
-                [question.pluginCode]: [...currentAnswers, option],
-            }));
-        }
+    } else {
+      const currentAnswers = answers[question.pluginCode] || [];
+      if (currentAnswers.includes(option)) {
+        // Remove from selection
+        setAnswers((prevAnswers) => ({
+          ...prevAnswers,
+          [question.pluginCode]: currentAnswers.filter((ans) => ans !== option),
+        }));
+      } else {
+        // Add to selection
+        setAnswers((prevAnswers) => ({
+          ...prevAnswers,
+          [question.pluginCode]: [...currentAnswers, option],
+        }));
+      }
     }
 
     // Trigger animation
     Animated.spring(animationValue, {
-        toValue: 1.1, // Scale up
+      toValue: 1.1, // Scale up
+      friction: 3,
+      useNativeDriver: true,
+    }).start(() => {
+      Animated.spring(animationValue, {
+        toValue: 1, // Scale back down
         friction: 3,
         useNativeDriver: true,
-    }).start(() => {
-        Animated.spring(animationValue, {
-            toValue: 1, // Scale back down
-            friction: 3,
-            useNativeDriver: true,
-        }).start();
+      }).start();
     });
   };
 
-  
-  
-  
+  //Function for Date picker
+  const formatDate = (date) => {
+    let tempDate = new Date(date);
+    const months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+
+    return (
+      months[tempDate.getMonth()] +
+      " " +
+      tempDate.getDate() +
+      " , " +
+      tempDate.getFullYear()
+    );
+  };
+  const onChange = (event, selectedDate, question) => {
+    if (selectedDate) {
+      setShow(false); // Close the date picker
+      setDate(selectedDate); // Update the date state with the selected date
+      setDatePicker(formatDate(selectedDate)); // Format for display
+
+      // Call handleAnswerChange to store the selected date
+      handleAnswerChange(selectedDate.toLocaleDateString(), question);
+    } else {
+      setShow(false); // Close the date picker if user cancels
+    }
+  };
+  // Function to show the date picker mode (date/time)
+  const showMode = (currentMode) => {
+    setShow(true); // Open the date picker
+    setMode(currentMode); // Set the mode (date or time)
+  };
+
   const renderQuestion = () => {
     const question = questions[currentQuestionIndex];
+
     // console.log(question);
     if (question.isHidden) return null; // Skip hidden questions
-  
+
     switch (question.pluginCode) {
-      case 'CHO1': // Single Choice
-        return (
-            <View style={styles.questionContainer}>
-                <Text style={styles.questionText}>{question.question}</Text>
-                {question.additionalText && <Text style={styles.additionalText}>{question.additionalText}</Text>}
-                {question.options.map((option, index) => {
-                    const isSelected = selectedOption === option.option; // Use selectedOption to determine if it's selected
-                    return (
-                        <TouchableOpacity
-                            key={index}
-                            onPress={() => handleAnswerChange(option.option, question)}
-                            style={[styles.optionContainer, isSelected && styles.selectedOption]}
-                        >
-                            <Animated.View style={{ transform: [{ scale: isSelected ? animationValue : 1 }] }}>
-                                <Text style={[styles.optionText, isSelected && styles.selectedText]}>
-                                    {option.option}
-                                </Text>
-                            </Animated.View>
-                        </TouchableOpacity>
-                    );
-                })}
-
-                {/* Display Required Message */}
-                {question.isRequired && (
-                    <Text style={styles.requiredText}>*Required*</Text>
-                )}
-            </View>
-        );
-
-      case 'CHOM': // Multiple Choice
+      case "CHO1": // Single Choice
         return (
           <View style={styles.questionContainer}>
             <Text style={styles.questionText}>{question.question}</Text>
-            {question.additionalText && <Text style={styles.additionalText}>{question.additionalText}</Text>}
+            {question.additionalText && (
+              <Text style={styles.additionalText}>
+                {question.additionalText}
+              </Text>
+            )}
             {question.options.map((option, index) => {
-              const isSelected = (answers[question.pluginCode] || []).includes(option.option);
+              const isSelected = selectedOption === option.option; // Use selectedOption to determine if it's selected
               return (
                 <TouchableOpacity
                   key={index}
-                  onPress={() => handleAnswerChange(option.option, question)} // Pass the question here
-                  style={[styles.optionContainer, isSelected && styles.selectedOption]} // Highlight selected option
+                  onPress={() => handleAnswerChange(option.option, question)}
+                  style={[
+                    styles.optionContainer,
+                    isSelected && styles.selectedOption,
+                  ]}
                 >
-                  <Animated.View style={{ transform: [{ scale: isSelected ? animationValue : 1 }] }}>
-                    <Text style={[styles.optionText, isSelected && styles.selectedText]}>
+                  <Animated.View
+                    style={{
+                      transform: [{ scale: isSelected ? animationValue : 1 }],
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        isSelected && styles.selectedText,
+                      ]}
+                    >
                       {option.option}
                     </Text>
-                    {option.additionalText && <Text style={styles.additionalText}>{option.additionalText}</Text>}
                   </Animated.View>
                 </TouchableOpacity>
               );
@@ -303,23 +363,51 @@ const SpecificSurvey = ({ route }) => {
             )}
           </View>
         );
-      
-      case 'DATE': // Date Picker
+
+      case "CHOM": // Multiple Choice
         return (
           <View style={styles.questionContainer}>
             <Text style={styles.questionText}>{question.question}</Text>
-            <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.datePicker}>
-              <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
-            </TouchableOpacity>
-
-            {/* {showDatePicker && (
-              <DateTimePicker
-                value={date}
-                mode="date"
-                display="default"
-                onChange={onChangeDate}
-              />
-            )} */}
+            {question.additionalText && (
+              <Text style={styles.additionalText}>
+                {question.additionalText}
+              </Text>
+            )}
+            {question.options.map((option, index) => {
+              const isSelected = (answers[question.pluginCode] || []).includes(
+                option.option
+              );
+              return (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => handleAnswerChange(option.option, question)} // Pass the question here
+                  style={[
+                    styles.optionContainer,
+                    isSelected && styles.selectedOption,
+                  ]} // Highlight selected option
+                >
+                  <Animated.View
+                    style={{
+                      transform: [{ scale: isSelected ? animationValue : 1 }],
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        isSelected && styles.selectedText,
+                      ]}
+                    >
+                      {option.option}
+                    </Text>
+                    {option.additionalText && (
+                      <Text style={styles.additionalText}>
+                        {option.additionalText}
+                      </Text>
+                    )}
+                  </Animated.View>
+                </TouchableOpacity>
+              );
+            })}
 
             {/* Display Required Message */}
             {question.isRequired && (
@@ -327,8 +415,48 @@ const SpecificSurvey = ({ route }) => {
             )}
           </View>
         );
-  
-      case 'IMGL': // Image Upload
+
+      case "DATE": // Date Picker
+        return (
+          <View style={styles.questionContainer}>
+            <Text style={styles.questionText}>{question.question}</Text>
+            <View style={styles.dateContainer}>
+              <Image
+                style={styles.calendarIcon}
+                resizeMode="cover"
+                source={require("../images/date-icon.png")}
+              />
+              <TouchableOpacity
+                style={styles.input}
+                onPress={() => showMode("date")}
+              >
+                <Text style={styles.show} keyboardType="numeric">
+                  {datePicker} {/* Show the formatted date or 'Set Date' */}
+                </Text>
+              </TouchableOpacity>
+
+              {show && (
+                <DateTimePicker
+                  testID="dateTimePicker"
+                  value={date || new Date()}
+                  mode={mode}
+                  display="default"
+                  onChange={(event, selectedDate) =>
+                    onChange(event, selectedDate, question)
+                  } // Handle date selection
+                  style={styles.datePicker}
+                />
+              )}
+            </View>
+
+            {/* Display Required Message */}
+            {question.isRequired && (
+              <Text style={styles.requiredText}>*Required*</Text>
+            )}
+          </View>
+        );
+
+      case "IMGL": // Image Upload
         return (
           <View style={styles.uploadContainer}>
             {selectedImages.length === 0 ? (
@@ -346,25 +474,33 @@ const SpecificSurvey = ({ route }) => {
                       resizeMode="cover"
                       source={{ uri }}
                     />
-                    <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(uri)}>
+                    <TouchableOpacity
+                      style={styles.removeImageButton}
+                      onPress={() => removeImage(uri)}
+                    >
                       <Text style={styles.removeImageText}>×</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
                 {selectedImages.length > 2 && (
                   <TouchableOpacity onPress={toggleModal}>
-                    <Text style={styles.moreImagesText}>+{selectedImages.length - 2} more</Text>
+                    <Text style={styles.moreImagesText}>
+                      +{selectedImages.length - 2} more
+                    </Text>
                   </TouchableOpacity>
                 )}
               </View>
             )}
-        
+
             {selectedImages.length > 0 && (
-              <TouchableOpacity style={styles.addMoreButton} onPress={requestPermissions}>
+              <TouchableOpacity
+                style={styles.addMoreButton}
+                onPress={requestPermissions}
+              >
                 <Text style={styles.addMoreButtonText}>Add more +</Text>
               </TouchableOpacity>
             )}
-        
+
             <TouchableOpacity onPress={requestPermissions}>
               <View style={styles.textContainer}>
                 <Text style={[styles.text2, styles.typo]}>Upload Photo</Text>
@@ -375,8 +511,8 @@ const SpecificSurvey = ({ route }) => {
             </TouchableOpacity>
           </View>
         );
-  
-      case 'TXT': // Monetary Input
+
+      case "TXT": // Monetary Input check
         return (
           <View style={styles.questionContainer}>
             <Text style={styles.questionText1}>{question.question}</Text>
@@ -394,7 +530,7 @@ const SpecificSurvey = ({ route }) => {
           </View>
         );
 
-      case 'MNY': // Monetary Input
+      case "MNY": // Monetary Input
         return (
           <View style={styles.questionContainer}>
             <Text style={styles.questionText}>{question.question}</Text>
@@ -413,8 +549,8 @@ const SpecificSurvey = ({ route }) => {
             )}
           </View>
         );
-      
-      case 'NUM': // Monetary Input
+
+      case "NUM": // Monetary Input
         return (
           <View style={styles.questionContainer}>
             <Text style={styles.questionText}>{question.question}</Text>
@@ -432,51 +568,59 @@ const SpecificSurvey = ({ route }) => {
           </View>
         );
 
-      case 'STR5': // Star Rating
+      case "STR5": // Star Rating
         return (
-            <View style={styles.questionContainer}>
-                {/* <Text style={styles.questionText}>{question.question}</Text> */}
-                <Text style={styles.ratingText}>{getRatingText(selectedOption)}</Text>
-                <View style={styles.starContainer}>
-                    {Array.from({ length: 5 }, (_, index) => {
-                        const starValue = index + 1;
-                        const isSelected = starValue <= selectedOption; // Select all stars up to the selected one
-                        return (
-                            <TouchableOpacity
-                                key={starValue}
-                                onPress={() => handleStarRatingChange(starValue)}
-                                style={styles.starButton}
-                            >
-                                <Text style={[styles.star, isSelected ? styles.selectedStar : styles.unselectedStar]}>
-                                    ★
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-                {question.isRequired && (
-                    <Text style={styles.requiredText}>*Required*</Text>
-                )}
+          <View style={styles.questionContainer}>
+            {/* <Text style={styles.questionText}>{question.question}</Text> */}
+            <Text style={styles.ratingText}>
+              {getRatingText(selectedOption)}
+            </Text>
+            <View style={styles.starContainer}>
+              {Array.from({ length: 5 }, (_, index) => {
+                const starValue = index + 1;
+                const isSelected = starValue <= selectedOption; // Select all stars up to the selected one
+                return (
+                  <TouchableOpacity
+                    key={starValue}
+                    onPress={() => handleStarRatingChange(starValue)}
+                    style={styles.starButton}
+                  >
+                    <Text
+                      style={[
+                        styles.star,
+                        isSelected
+                          ? styles.selectedStar
+                          : styles.unselectedStar,
+                      ]}
+                    >
+                      ★
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+            {question.isRequired && (
+              <Text style={styles.requiredText}>*Required*</Text>
+            )}
+          </View>
         );
-  
+
       default:
         return null;
     }
   };
-  
 
   const requestPermissions = async () => {
     try {
       const { status: cameraStatus } = await requestCameraPermissions();
-  
-      if (cameraStatus !== 'granted') {
-        Alert.alert('Camera permissions are required to capture photos.');
+
+      if (cameraStatus !== "granted") {
+        Alert.alert("Camera permissions are required to capture photos.");
       } else {
         handleImagePick(true);
       }
     } catch (error) {
-      console.error('Error requesting permissions:', error);
+      console.error("Error requesting permissions:", error);
     }
   };
 
@@ -489,16 +633,19 @@ const SpecificSurvey = ({ route }) => {
         });
 
         if (!result.canceled) {
-          setSelectedImages([...selectedImages, ...result.assets.map(asset => asset.uri)]);
+          setSelectedImages([
+            ...selectedImages,
+            ...result.assets.map((asset) => asset.uri),
+          ]);
         }
       }
     } catch (error) {
-      console.log('Error while capturing image: ', error);
+      console.log("Error while capturing image: ", error);
     }
   };
 
   const removeImage = (uri) => {
-    setSelectedImages(selectedImages.filter(imageUri => imageUri !== uri));
+    setSelectedImages(selectedImages.filter((imageUri) => imageUri !== uri));
   };
 
   const toggleModal = () => {
@@ -518,10 +665,10 @@ const SpecificSurvey = ({ route }) => {
   };
 
   const submitSurvey = async () => {
-    const { surId } = selectedLocation; 
+    const { surId } = selectedLocation;
     const { lat, lon } = coordinates;
 
-    console.log('Submitting survey...');
+    console.log("Submitting survey...");
     console.log(`Survey ID: ${surId}`);
     console.log(`Latitude: ${lat}`);
     console.log(`Longitude: ${lon}`);
@@ -529,116 +676,136 @@ const SpecificSurvey = ({ route }) => {
     setLoading(true); // Start loading
 
     try {
-        // Step 1: Start Submission
-        const startResponse = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/start/${lat}/${lon}`, {
-            method: 'PATCH',
-            // headers: {
-            //     'x-st3-token': token,
-            //     'Content-Type': 'application/json',
-            // },
-        });
+      // Step 1: Start Submission
+      const startResponse = await fetch(
+        `https://stapi.simplifiedtrade.com/app/v2/${surId}/start/${lat}/${lon}`,
+        {
+          method: "PATCH",
+          // headers: {
+          //     'x-st3-token': token,
+          //     'Content-Type': 'application/json',
+          // },
+        }
+      );
 
-        if (!startResponse.ok) {
-            const errorText = await startResponse.text();
-            if (startResponse.status === 409) { // Conflict status for already started session
-                console.log('Survey already started for this location. Proceeding to submit answers.');
-            } else {
-                throw new Error(`Failed to start submission: ${startResponse.statusText} - ${errorText}`);
-            }
+      if (!startResponse.ok) {
+        const errorText = await startResponse.text();
+        if (startResponse.status === 409) {
+          // Conflict status for already started session
+          console.log(
+            "Survey already started for this location. Proceeding to submit answers."
+          );
         } else {
-            const startData = await startResponse.json();
-            console.log('Survey started successfully:', startData);
+          throw new Error(
+            `Failed to start submission: ${startResponse.statusText} - ${errorText}`
+          );
         }
+      } else {
+        const startData = await startResponse.json();
+        console.log("Survey started successfully:", startData);
+      }
 
-        // Optional: Add a delay before submitting answers
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+      // Optional: Add a delay before submitting answers
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
 
-        // Step 2: Submit Answer for First Question (ID 0)
-        const questionId = 0; // ID of the first question
-        const question = questions[questionId]; // Get the question object
-        const answer = answers[question.pluginCode]; // Retrieve the answer using pluginCode
+      // Step 2: Submit Answer for First Question (ID 0)
+      const questionId = 0; // ID of the first question
+      const question = questions[questionId]; // Get the question object
+      const answer = answers[question.pluginCode]; // Retrieve the answer using pluginCode
 
-        console.log(`Answer retrieved for question ID ${questionId}:`, answer); // Log the retrieved answer
+      console.log(`Answer retrieved for question ID ${questionId}:`, answer); // Log the retrieved answer
 
-        console.log(`Submitting answer for question ID: ${questionId}`);
-        await submitAnswer(surId, questionId, answer, token);
+      console.log(`Submitting answer for question ID: ${questionId}`);
+      await submitAnswer(surId, questionId, answer, token);
 
-
-        // Step 3: End Submission
-        const endResponse = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/end/${new Date().toISOString()}`, {
-            method: 'PATCH',
-            headers: {
-                'x-st3-token': token,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!endResponse.ok) {
-            const errorText = await endResponse.text();
-            throw new Error(`Failed to end submission: ${endResponse.statusText} - ${errorText}`);
+      // Step 3: End Submission
+      const endResponse = await fetch(
+        `https://stapi.simplifiedtrade.com/app/v2/${surId}/end/${new Date().toISOString()}`,
+        {
+          method: "PATCH",
+          headers: {
+            "x-st3-token": token,
+            "Content-Type": "application/json",
+          },
         }
-        console.log('Survey ended successfully.');
-        toggleSubmitModal(); // Close the submit modal
-        toggleSuccessModal(); // Show success modal
+      );
 
+      if (!endResponse.ok) {
+        const errorText = await endResponse.text();
+        throw new Error(
+          `Failed to end submission: ${endResponse.statusText} - ${errorText}`
+        );
+      }
+      console.log("Survey ended successfully.");
+      toggleSubmitModal(); // Close the submit modal
+      toggleSuccessModal(); // Show success modal
     } catch (error) {
-        console.error('Error submitting survey:', error);
-        Alert.alert('Submission failed', 'There was an error submitting the survey. Please try again.');
-    } 
-    finally {
+      console.error("Error submitting survey:", error);
+      Alert.alert(
+        "Submission failed",
+        "There was an error submitting the survey. Please try again."
+      );
+    } finally {
       setLoading(false); // Stop loading
     }
   };
 
-// Helper function to submit an answer
+  // Helper function to submit an answer
   const submitAnswer = async (surId, questionId, answer, token) => {
     const body = JSON.stringify({
-        question_id: questionId,
-        answers: {
-            option: Array.isArray(answer) ? answer : [answer] // Ensure it's an array for multiple choices
-        }
+      question_id: questionId,
+      answers: {
+        option: Array.isArray(answer) ? answer : [answer], // Ensure it's an array for multiple choices
+      },
     });
 
     // Log the body being sent
     console.log(`Submitting answer for question ${questionId}:`, body);
 
-    const response = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/answer`, {
-        method: 'PATCH',
+    const response = await fetch(
+      `https://stapi.simplifiedtrade.com/app/v2/${surId}/answer`,
+      {
+        method: "PATCH",
         headers: {
-            'x-st3-token': token,
-            'Content-Type': 'application/json',
+          "x-st3-token": token,
+          "Content-Type": "application/json",
         },
         body: body,
-    });
+      }
+    );
 
     console.log(token);
 
     if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to submit answer for question ${questionId}: ${response.statusText} - ${errorText}`);
+      const errorText = await response.text();
+      throw new Error(
+        `Failed to submit answer for question ${questionId}: ${response.statusText} - ${errorText}`
+      );
     }
     console.log(`Answer submitted for question ${questionId} successfully.`);
   };
 
-
-// Function to retrieve answers (implement this based on your state structure)
-const getAnswers = () => {
+  // Function to retrieve answers (implement this based on your state structure)
+  const getAnswers = () => {
     // Return the answers object in the required format
     return answers; // Adjust this line as necessary
-};
-
-
-  
-  
+  };
 
   return (
-    <View style={styles.container}>
+    // long survey card
+    <ScrollView
+      style={[styles.container, keyboardOpen ? styles.adjustedContainer : null]}
+    >
       <View style={styles.card}>
         <Text style={styles.title}>{title}</Text>
         <View style={styles.gradientContainer}>
           <View style={[styles.greyGradient, styles.gradientPosition]} />
           <LinearGradient
-            style={[styles.gradient, styles.gradientPosition]}
+            style={[
+              styles.gradient,
+              styles.gradientPosition,
+              { width: `${progressPercentage}%` },
+            ]}
             locations={[0, 1]}
             colors={["#072b69", "#0d54cf"]}
             useAngle={true}
@@ -651,9 +818,7 @@ const getAnswers = () => {
             resizeMode="cover"
             source={require("../images/tick-1.png")}
           />
-          <Text style={[styles.text1, styles.typo]}>
-            Location Verified
-          </Text>
+          <Text style={[styles.text1, styles.typo]}>Location Verified</Text>
         </View>
       </View>
 
@@ -665,44 +830,53 @@ const getAnswers = () => {
 
         {/* Navigation Buttons */}
         <View style={styles.navigationContainer}>
-            <TouchableOpacity 
-                style={styles.backButtonn} 
-                onPress={goToPreviousQuestion} 
-                disabled={currentQuestionIndex === 0}
+          <TouchableOpacity
+            style={styles.backButtonn}
+            onPress={goToPreviousQuestion}
+            disabled={currentQuestionIndex === 0}
+          >
+            <Text style={styles.backButtonTextt}>Back</Text>
+          </TouchableOpacity>
+
+          {/* Only show the top button if not on the last question */}
+          {currentQuestionIndex < questions.length - 1 && (
+            <TouchableOpacity
+              style={nextButtonStyle}
+              onPress={goToNextQuestion}
+              disabled={!isCurrentQuestionAnswered()}
             >
-                <Text style={styles.backButtonTextt}>Back</Text>
+              <Text
+                style={[
+                  styles.nextButtonTextt,
+                  !isCurrentQuestionAnswered() && styles.disabledText,
+                ]}
+              >
+                Next
+              </Text>
             </TouchableOpacity>
-            
-            {/* Only show the top button if not on the last question */}
-            {currentQuestionIndex < questions.length - 1 && (
-                <TouchableOpacity 
-                    style={nextButtonStyle} 
-                    onPress={goToNextQuestion} 
-                    disabled={!isCurrentQuestionAnswered()}
-                >
-                    <Text style={[styles.nextButtonTextt, !isCurrentQuestionAnswered() && styles.disabledText]}>
-                        Next
-                    </Text>
-                </TouchableOpacity>
-            )}
+          )}
         </View>
       </View>
 
       {currentQuestionIndex === questions.length - 1 && (
-        <TouchableOpacity 
-          style={[styles.nextButton, !isCurrentQuestionAnswered() && styles.nextButtonDisabled]} 
-          onPress={toggleSubmitModal} 
-          disabled={!isCurrentQuestionAnswered()} 
+        <TouchableOpacity
+          style={[
+            styles.nextButton,
+            !isCurrentQuestionAnswered() && styles.nextButtonDisabled,
+          ]}
+          onPress={toggleSubmitModal}
+          disabled={!isCurrentQuestionAnswered()}
         >
-          <Text style={[styles.next, styles.typo]}>
-            Next
-          </Text>
+          <Text style={[styles.next, styles.typo]}>Next</Text>
         </TouchableOpacity>
       )}
 
-
       {/* Success Modal */}
-      <Modal visible={isSuccessModalVisible} transparent={true} animationType="fade">
+      <Modal
+        visible={isSuccessModalVisible}
+        transparent={true}
+        animationType="fade"
+      >
         <BlurView
           style={styles.blur}
           blurType="light"
@@ -713,11 +887,16 @@ const getAnswers = () => {
           <View style={styles.innerModal}>
             <Image
               style={styles.tickImage}
-              source={require('../images/tick-1.png')}
+              source={require("../images/tick-1.png")}
               resizeMode="cover"
             />
-            <Text style={styles.successText}>Survey Submitted Successfully</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.successText}>
+              Survey Submitted Successfully
+            </Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => navigation.goBack()}
+            >
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -725,54 +904,73 @@ const getAnswers = () => {
       </Modal>
 
       {/* Survey Modal */}
-      <Modal visible={isSubmitModalVisible} transparent={true} animationType="fade">
+      <Modal
+        visible={isSubmitModalVisible}
+        transparent={true}
+        animationType="fade"
+      >
         <BlurView
           style={styles.blurBackground}
           blurType="light"
           blurAmount={2}
           reducedTransparencyFallbackColor="white"
         />
-          <View style={styles.bottomModal}>
-            <View style={styles.surveyParent}>
-              <Text style={styles.survey}>Survey</Text>
-              <TouchableOpacity onPress={toggleSubmitModal}>
-                <Image
-                  style={styles.iconX}
-                  resizeMode="cover"
-                  source={require("../images/cross.png")}
-                />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.rectangle} />
-            <View style={styles.textGroup}>
-              <Text style={styles.text4}>Recurring Reload Copying 2 Survey Machine</Text>
-              <View style={styles.frameView}>
-                <TouchableOpacity style={styles.sendNowParent} onPress={toggleSendNow}>
-                  <Text style={styles.sendNow}>Send Now</Text>
-                  <View style={styles.switchContainer}>
-                    <Switch
-                      trackColor={{ false: '#767577', true: '#81b0ff' }}
-                      thumbColor={sendNowActive ? '#007bff' : '#f4f3f4'}
-                      onValueChange={toggleSendNow}
-                      value={sendNowActive}
-                      style={styles.switch} 
-                      touchSoundDisabled={true}
-                    />
-                  </View>
-                </TouchableOpacity>
-                <Text style={[styles.text5, sendNowActive ? styles.textActive : styles.textInactive]}>
-                  {sendNowActive ? "Results will be sent now." : "You can send later."}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.typebuttonType2secondary1} onPress={submitSurvey}>
-              {loading ? (
-                  <ActivityIndicator size="small" color="#ffffff" /> // Loader when submitting
-              ) : (
-                  <Text style={styles.submitSurveyText}>Submit Survey</Text>
-              )}
+        <View style={styles.bottomModal}>
+          <View style={styles.surveyParent}>
+            <Text style={styles.survey}>Survey</Text>
+            <TouchableOpacity onPress={toggleSubmitModal}>
+              <Image
+                style={styles.iconX}
+                resizeMode="cover"
+                source={require("../images/cross.png")}
+              />
             </TouchableOpacity>
           </View>
+          <View style={styles.rectangle}/>
+          <View style={styles.textGroup}>
+            <Text style={styles.text4}>
+              Recurring Reload Copying 2 Survey Machine
+            </Text>
+            <View style={styles.frameView}>
+              <TouchableOpacity
+                style={styles.sendNowParent}
+                onPress={toggleSendNow}
+              >
+                <Text style={styles.sendNow}>Send Now</Text>
+                <View style={styles.switchContainer}>
+                  <Switch
+                    trackColor={{ false: "#767577", true: "#81b0ff" }}
+                    thumbColor={sendNowActive ? "#007bff" : "#f4f3f4"}
+                    onValueChange={toggleSendNow}
+                    value={sendNowActive}
+                    style={styles.switch}
+                    touchSoundDisabled={true}
+                  />
+                </View>
+              </TouchableOpacity>
+              <Text
+                style={[
+                  styles.text5,
+                  sendNowActive ? styles.textActive : styles.textInactive,
+                ]}
+              >
+                {sendNowActive
+                  ? "Results will be sent now."
+                  : "You can send later."}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.typebuttonType2secondary1}
+            onPress={submitSurvey}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#ffffff" /> // Loader when submitting
+            ) : (
+              <Text style={styles.submitSurveyText}>Submit Survey</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Showing Selected Images Modal */}
@@ -787,11 +985,11 @@ const getAnswers = () => {
           <ScrollView contentContainerStyle={styles.modalScrollView}>
             {selectedImages.map((uri, index) => (
               <View key={index} style={styles.modalImageWrapper}>
-                <Image
-                  style={styles.modalImage}
-                  source={{ uri }}
-                />
-                <TouchableOpacity style={styles.modalRemoveButton} onPress={() => removeImage(uri)}>
+                <Image style={styles.modalImage} source={{ uri }} />
+                <TouchableOpacity
+                  style={styles.modalRemoveButton}
+                  onPress={() => removeImage(uri)}
+                >
                   <Text style={styles.modalRemoveText}>×</Text>
                 </TouchableOpacity>
               </View>
@@ -802,7 +1000,7 @@ const getAnswers = () => {
           </TouchableOpacity>
         </View>
       </Modal>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -814,8 +1012,11 @@ const styles = StyleSheet.create({
   },
   blur: {
     position: "absolute",
-    top: 0, left: 0, bottom: 0, right: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)'
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   card: {
     backgroundColor: "white",
@@ -834,8 +1035,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 13,
     marginBottom: 10,
-    color: 'black',
-    fontWeight: '600',
+    color: "black",
+    fontWeight: "600",
   },
   gradientContainer: {
     width: "100%",
@@ -875,21 +1076,21 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   uploadContainer: {
-    flexDirection: "column", 
-    alignItems: "center", 
+    flexDirection: "column",
+    alignItems: "center",
   },
   groupIcon: {
     width: 50,
     height: 50,
-    marginBottom: 10, 
+    marginBottom: 10,
   },
   textContainer: {
-    alignItems: "center", 
+    alignItems: "center",
   },
   text2: {
     fontSize: 16,
     fontWeight: "600",
-    color: 'black',
+    color: "black",
   },
   text3: {
     fontSize: 14,
@@ -950,7 +1151,7 @@ const styles = StyleSheet.create({
     padding: 7,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: 'blue',
+    borderColor: "blue",
     borderRadius: 50,
     marginVertical: 10,
   },
@@ -963,7 +1164,8 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 10,
+    marginBottom: 50,
   },
   next: {
     fontSize: 16,
@@ -1004,14 +1206,14 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   innerModal: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 20,
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
   tickImage: {
     width: 50,
@@ -1021,17 +1223,17 @@ const styles = StyleSheet.create({
   successText: {
     fontSize: 18,
     marginBottom: 20,
-    color: 'black',
+    color: "black",
   },
   closeButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: "#007bff",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,
   },
   closeButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: "#fff",
+    fontWeight: "bold",
     fontSize: 16,
   },
 
@@ -1056,7 +1258,7 @@ const styles = StyleSheet.create({
   },
   survey: {
     fontSize: 24,
-    color: 'black',
+    color: "black",
     fontFamily: "SourceSans3-Bold",
   },
   iconX: {
@@ -1069,8 +1271,8 @@ const styles = StyleSheet.create({
   text4: {
     fontSize: 16,
     marginBottom: 10,
-    color: 'black',
-    fontFamily: 'Outfit-SemiBold',
+    color: "black",
+    fontFamily: "Outfit-SemiBold",
   },
   frameView: {
     flexDirection: "column",
@@ -1079,23 +1281,23 @@ const styles = StyleSheet.create({
   sendNowParent: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     marginBottom: 5,
   },
   sendNow: {
     fontSize: 15,
-    color: 'black',
-    fontFamily: 'Outfit-SemiBold',
+    color: "black",
+    fontFamily: "Outfit-SemiBold",
   },
   text5: {
     fontSize: 13,
     marginBottom: 10,
   },
   switchContainer: {
-    justifyContent: 'center', 
+    justifyContent: "center",
   },
   switch: {
-    transform: [{ scaleX: 1.5 }, { scaleY: 1.3 }], 
+    transform: [{ scaleX: 1.5 }, { scaleY: 1.3 }],
   },
   textActive: {
     color: "#007bff", // blue color
@@ -1123,107 +1325,131 @@ const styles = StyleSheet.create({
   selectionOption: {
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-    width: '100%',
+    borderBottomColor: "#ccc",
+    width: "100%",
   },
   selectionText: {
     fontSize: 16,
-    color: '#007bff',
+    color: "#007bff",
   },
   closeModalButton: {
     padding: 15,
   },
   closeModalButtonText: {
-    color: '#ff0000',
+    color: "#ff0000",
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
 
   questionsContainer: {
-    width: '100%',
+    width: "100%",
     paddingVertical: 20,
   },
   questionContainer: {
     marginBottom: 10,
   },
   navigationContainer: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
     // marginTop: 10,
   },
   backButtonn: {
-    backgroundColor: '#ccc',
+    backgroundColor: "#ccc",
     padding: 10,
     borderRadius: 5,
   },
   backButtonTextt: {
-    color: 'black',
+    color: "black",
   },
   nextButtonn: {
-    backgroundColor: '#007bff',
+    backgroundColor: "#007bff",
     padding: 10,
     borderRadius: 5,
   },
   nextButtonTextt: {
-    color: 'white',
+    color: "white",
   },
   nextButtonDisabled: {
-    backgroundColor: '#d3d3d3', // Light grey for disabled state
+    backgroundColor: "#d3d3d3", // Light grey for disabled state
     padding: 10,
     borderRadius: 5,
     opacity: 0.7, // Optional: make it look more disabled
     // other styles...
   },
   disabledText: {
-    color: '#a9a9a9', // Light grey text for disabled state
+    color: "#a9a9a9", // Light grey text for disabled state
   },
   questionText: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333', // Text color
+    fontWeight: "bold",
+    color: "#333", // Text color
     marginBottom: 2,
   },
   questionText1: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333', // Text color
+    fontWeight: "bold",
+    color: "#333", // Text color
     marginBottom: 2,
     marginBottom: 10,
   },
+  //date style
+  dateContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  calendarIcon: {
+    width: 35,
+    height: 35,
+    marginRight: 5,
+  },
+  input: {
+    paddingLeft: 15,
+    paddingRight: 15,
+    flexDirection: "row",
+    borderColor: "#e4f0ee",
+    borderRadius: 5,
+    borderWidth: 1.5,
+    backgroundColor: "#f2fafb",
+  },
+  show: {
+    marginTop: 10,
+    marginBottom: 10,
+    fontSize: 18,
+  },
   optionContainer: {
-    backgroundColor: '#bbdefb', // Light blue background color for options
+    backgroundColor: "#bbdefb", // Light blue background color for options
     padding: 15,
     borderRadius: 8,
     marginVertical: 5,
     borderWidth: 1,
-    borderColor: '#90caf9', // Lighter blue border color
+    borderColor: "#90caf9", // Lighter blue border color
   },
   selectedOption: {
-    backgroundColor: '#1976d2', // Dark blue for selected option
-    borderColor: '#0d47a1', // Even darker border for selected
+    backgroundColor: "#1976d2", // Dark blue for selected option
+    borderColor: "#0d47a1", // Even darker border for selected
   },
   optionText: {
     fontSize: 16,
-    color: '#0d47a1', // Default text color
+    color: "#0d47a1", // Default text color
   },
   selectedText: {
-    color: '#ffffff', // White text for selected option
+    color: "#ffffff", // White text for selected option
   },
   additionalText: {
     fontSize: 14,
-    color: '#555', // Additional text color
+    color: "#555", // Additional text color
     marginBottom: 20,
   },
   requiredText: {
-    color: 'black', // or any color you prefer
+    color: "black", // or any color you prefer
     fontSize: 14, // adjust size as needed
     marginTop: 8, // space above the text
   },
   moneyInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderColor: '#003366', // Dark blue color
+    flexDirection: "row",
+    alignItems: "center",
+    borderColor: "#003366", // Dark blue color
     borderWidth: 1,
     borderRadius: 5,
     height: 50,
@@ -1231,18 +1457,23 @@ const styles = StyleSheet.create({
   dollarSign: {
     fontSize: 16,
     paddingHorizontal: 10,
-    color: '#333',
+    color: "#333",
   },
   moneyInput: {
     flex: 1, // Take remaining space
     paddingHorizontal: 10,
     fontSize: 16,
-    color: '#333',
-    borderColor: 'transparent', // Hide the default border
+    color: "#333",
+    borderColor: "transparent", // Hide the default border
+    justifyContent: "center",
+    padding: 12,
+  },
+  adjustedContainer: {
+    marginTop: Platform.OS === "android" ? -100 : 0, // Adjust margin when keyboard is open
   },
   starContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     marginVertical: 10,
   },
   starButton: {
@@ -1252,17 +1483,16 @@ const styles = StyleSheet.create({
     fontSize: 40,
   },
   selectedStar: {
-    color: 'gold', // Color for selected stars
+    color: "gold", // Color for selected stars
   },
   unselectedStar: {
-    color: 'grey', // Color for unselected stars
+    color: "grey", // Color for unselected stars
   },
   ratingText: {
     fontSize: 20,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 10,
   },
-  
 });
 
 export default SpecificSurvey;
