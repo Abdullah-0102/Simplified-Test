@@ -244,12 +244,12 @@ const styles = StyleSheet.create({
     left: 0,
   },
   statusBarLineInactive1: {
-    width: 50,
+    width: 100,
     height: 2,
     backgroundColor: '#C0C0C0',
     position: 'absolute',
     top: 15,
-    left: 70,
+    left: '50%',
   },
   statusBarIndicatorActive: {
     width: 30,

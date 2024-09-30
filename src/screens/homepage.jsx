@@ -1,6 +1,15 @@
 import React, { useState, useContext, useEffect } from "react";
-import { StyleSheet, View, ScrollView, TextInput, TouchableOpacity, Modal, TouchableWithoutFeedback, ActivityIndicator } from "react-native";
-import { Image } from 'expo-image';
+import {
+  StyleSheet,
+  View,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  TouchableWithoutFeedback,
+  ActivityIndicator,
+} from "react-native";
+import { Image } from "expo-image";
 import LinearGradient from "react-native-linear-gradient";
 import Text from '../components/text';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,10 +25,10 @@ import { AuthContext } from "../contexts/authContext";
 
 const Homepage = ({ navigation, route }) => {
   const [searchText, setSearchText] = useState("");
-  const [isModalVisible, setIsModalVisible] = useState(false); 
-  const [loc1Model, setLoc1Model] = useState(false); 
-  const [loc2Model, setLoc2Model] = useState(false); 
-  const [loc3Model, setLoc3Model] = useState(false); 
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [loc1Model, setLoc1Model] = useState(false);
+  const [loc2Model, setLoc2Model] = useState(false);
+  const [loc3Model, setLoc3Model] = useState(false);
   const [surveySelect, setSurveySelect] = useState("");
   const [locSelect, setLocSelect] = useState("");
   const [locModalVisible, setLocModalVisible] = useState(false);
@@ -148,6 +157,18 @@ const Homepage = ({ navigation, route }) => {
       }
   };
 
+  useEffect(() => {
+    const checkSavedSurveys = async () => {
+        const existingSurveys = await AsyncStorage.getItem('savedSurveys');
+        if (existingSurveys) {
+            const parsedSurveys = JSON.parse(existingSurveys);
+            setSavedSurveys(parsedSurveys);
+        }
+    };
+
+    checkSavedSurveys();
+}, []);
+
 
   const uploadImages = async (surId, questionId, images, token) => {
     for (let index = 0; index < images.length; index++) {
@@ -223,7 +244,7 @@ const Homepage = ({ navigation, route }) => {
                   option: Array.isArray(answer) ? answer : [answer]
               }
           });
-      } else if (pluginCode === 'TXT' || pluginCode === 'MNY' || pluginCode === 'NUM' || pluginCode === 'STR5') {
+      } else if (pluginCode === 'TXT' || pluginCode === 'MNY' || pluginCode === 'NUM' || pluginCode === 'STR5' || pluginCode === 'DATE') {
           // Ensure that text responses are handled correctly
           body = JSON.stringify({
               question_id: questionId,
@@ -267,41 +288,44 @@ const Homepage = ({ navigation, route }) => {
   useEffect(() => {
     const fetchSurveyData = async () => {
       try {
-        const surveyResponse = await fetch("https://stapi.simplifiedtrade.com/app/v2/surveys/json", {
-          method: 'GET',
-          headers: {
-            'x-st3-token': "TVgxL2w5YjBiN05RWnNGRmhibEg4Z2wxc3hML21RN0dqSkFESVJCZFpQcTYwQklyQ3VjTzEwUGsxWlNDUnZFdzloOGxzL1A5Z1F5ZGRHQXhRWTVMQ0E9PQ==",
-            'Content-Type': 'application/json', // Optional, depending on your API requirements
-          },
-        });
-        const storeResponse = await fetch("https://stapi.simplifiedtrade.com/app/v2/stores/json");
-  
+        const surveyResponse = await fetch(
+          "https://stapi.simplifiedtrade.com/app/v2/surveys/json",
+          {
+            method: "GET",
+            headers: {
+              "x-st3-token":
+                "TVgxL2w5YjBiN05RWnNGRmhibEg4Z2wxc3hML21RN0dqSkFESVJCZFpQcTYwQklyQ3VjTzEwUGsxWlNDUnZFdzloOGxzL1A5Z1F5ZGRHQXhRWTVMQ0E9PQ==",
+              "Content-Type": "application/json", // Optional, depending on your API requirements
+            },
+          }
+        );
+        const storeResponse = await fetch(
+          "https://stapi.simplifiedtrade.com/app/v2/stores/json"
+        );
+
         if (!surveyResponse.ok || !storeResponse.ok) {
           throw new Error("Network response was not ok");
         }
-  
+
         const surveyData = await surveyResponse.json();
         const storeData = await storeResponse.json();
-    
+
         setSurveyData(surveyData); // Set survey data
-        setStoreData(storeData);   // Set store data
+        setStoreData(storeData); // Set store data
       } catch (error) {
         setError(error.message);
       } finally {
         setLoading(false);
       }
     };
-  
+
     fetchSurveyData();
   }, []);
-  
-
-
 
   const cardsData = [
     {
       title: "Recurring Reload Copying 2 Survey Machine",
-      location: `+ ${locationNames.length} Locations`,  // Dynamic location count
+      location: `+ ${locationNames.length} Locations`, // Dynamic location count
       info1: "Ends May 31st 2024",
       info2: "3 hours ago",
       shapeText: "125",
@@ -380,35 +404,34 @@ const Homepage = ({ navigation, route }) => {
   const toggleLoc3Modal = () => {
     setLoc3Model(!loc3Model);
   };
-  
+
   const handleSearchChange = (text) => {
     setSearchText(text);
     // Implement your search logic here if needed
   };
 
   const handleLocationSelect = (locationTitle) => {
-    setSearchText(locationTitle || ''); 
-    toggleModal(); 
+    setSearchText(locationTitle || "");
+    toggleModal();
   };
 
   const handleLocationTap = (title) => {
-    setLocSelect(title); 
+    setLocSelect(title);
     toggleLoc3Modal();
   };
 
   const handleSurveyTap = (surveyTitle) => {
     setSurveySelect(surveyTitle);
     toggleLoc2Modal();
-  }
+  };
 
   const handleImagePress = () => {
-    navigation.navigate('HowItWorks');
+    navigation.navigate("HowItWorks");
   };
 
   const handleGetHelpPress = () => {
-    navigation.navigate('GetHelp');
+    navigation.navigate("GetHelp");
   };
-
 
   // Handle loading state
   if (loading) {
@@ -430,12 +453,16 @@ const Homepage = ({ navigation, route }) => {
 
   // Utility function to get the ordinal suffix for the day (e.g., 'st', 'nd', 'rd', 'th')
   const getOrdinalSuffix = (day) => {
-    if (day > 3 && day < 21) return 'th'; // For 11th, 12th, 13th, etc.
+    if (day > 3 && day < 21) return "th"; // For 11th, 12th, 13th, etc.
     switch (day % 10) {
-      case 1: return 'st';
-      case 2: return 'nd';
-      case 3: return 'rd';
-      default: return 'th';
+      case 1:
+        return "st";
+      case 2:
+        return "nd";
+      case 3:
+        return "rd";
+      default:
+        return "th";
     }
   };
 
@@ -443,29 +470,30 @@ const Homepage = ({ navigation, route }) => {
   const formatExpiryDate = (dateString) => {
     const date = new Date(dateString);
     const day = date.getDate();
-    const month = date.toLocaleString('default', { month: 'long' });
+    const month = date.toLocaleString("default", { month: "long" });
     const year = date.getFullYear();
-    
+
     return `Ends ${month} ${day}${getOrdinalSuffix(day)}, ${year}`;
   };
 
-
-  const filteredSurveys = searchText.trim() === ""
-    ? surveyData
-    : surveyData.filter(survey => {
-        const searchTextLower = searchText.toLowerCase();
-        // Check if surveyName or any locationName in completions matches the searchText
-        return survey.surveyName.toLowerCase().includes(searchTextLower) ||
-          survey.completions.some(location =>
-            location.locationName.toLowerCase().includes(searchTextLower)
+  const filteredSurveys =
+    searchText.trim() === ""
+      ? surveyData
+      : surveyData.filter((survey) => {
+          const searchTextLower = searchText.toLowerCase();
+          // Check if surveyName or any locationName in completions matches the searchText
+          return (
+            survey.surveyName.toLowerCase().includes(searchTextLower) ||
+            survey.completions.some((location) =>
+              location.locationName.toLowerCase().includes(searchTextLower)
+            )
           );
-  });
-
+        });
 
   const handleLocationPress = (survey) => {
     setLocModalVisible(!locModalVisible);
     setSelectedSurvey(survey);
-  }
+  };
 
   const hideLocModal = () => {
     setLocModalVisible(!locModalVisible);
@@ -473,21 +501,42 @@ const Homepage = ({ navigation, route }) => {
 
   const handleLocationNavigation = (locationName, survey, location) => {
     // Navigate to SpecificSurvey with location and selectedSurvey
-    const matchingStore = storeData.find(store => store.name === locationName);
-    const coordinates = matchingStore ? { lat: matchingStore.lat, lon: matchingStore.lon } : { lat: null, lon: null };
+    const matchingStore = storeData.find(
+      (store) => store.name === locationName
+    );
+    const coordinates = matchingStore
+      ? { lat: matchingStore.lat, lon: matchingStore.lon }
+      : { lat: null, lon: null };
 
-    navigation.navigate('SpecificSurvey', { 
-      location: locationName, 
-      selectedSurvey: survey, 
+    navigation.navigate("SpecificSurvey", {
+      location: locationName,
+      selectedSurvey: survey,
       selectedLocation: location,
       token: token,
-      coordinates // Pass the coordinates to the next screen
+      coordinates, // Pass the coordinates to the next screen
     });
+  };
+
+  const checkSavedSurveyData = async () => {
+    try {
+      const savedData = await AsyncStorage.getItem("surveyData");
+      if (savedData !== null) {
+        const parsedData = JSON.parse(savedData);
+        console.log("Saved Survey Data:", parsedData); // Log the data to the console
+      } else {
+        console.log("No saved survey data found.");
+      }
+    } catch (error) {
+      console.error("Error retrieving survey data from AsyncStorage:", error);
+    }
   };
 
   return (
     <View style={styles.homepage}>
-      <TouchableOpacity style={styles.touchableOpacity} onPress={handleGetHelpPress}> 
+      <TouchableOpacity
+        style={styles.touchableOpacity}
+        onPress={handleGetHelpPress}
+      >
         <Image
           style={styles.menuIcon}
           source={require("../images/drawer-icon.png")}
@@ -495,7 +544,7 @@ const Homepage = ({ navigation, route }) => {
       </TouchableOpacity>
       <View style={styles.logoContainer}>
         <Image
-          source={require('../images/logo-1.png')}
+          source={require("../images/logo-1.png")}
           style={styles.logo}
         />
       </View>
@@ -525,10 +574,10 @@ const Homepage = ({ navigation, route }) => {
             placeholderTextColor={"#666666"}
             value={searchText}
             onChangeText={handleSearchChange}
-            autoFocus={false} 
-            autoCorrect={false} 
-            autoCapitalize="none" 
-            keyboardType="default" 
+            autoFocus={false}
+            autoCorrect={false}
+            autoCapitalize="none"
+            keyboardType="default"
           />
         </View>
         <TouchableOpacity onPress={toggleModal}>
@@ -551,54 +600,110 @@ const Homepage = ({ navigation, route }) => {
         <Text style={styles.responses}>Responses</Text>
       </View>
 
+      {/* Pending Surveys */}
+      {/* <TouchableOpacity
+        style={[styles.pendingSurveys]}
+        onPress={checkSavedSurveyData}
+      >
+        <Text style={styles.pendingSurveysText}>Pending Surveys</Text>
+      </TouchableOpacity> */}
 
       {/* Repeatable card view */}
       <ScrollView style={styles.cardScrollView}>
         {filteredSurveys.map((survey, index) => {
           const locationCount = survey.completions.length;
 
-          const displayLocation = searchText.trim() === ""
-            ? `+ ${locationCount} Locations`
-            : survey.completions.some(location =>
-                location.locationName.toLowerCase().includes(searchText.toLowerCase())
-              )
-            ? survey.completions.find(location =>
-                location.locationName.toLowerCase().includes(searchText.toLowerCase())
-              ).locationName
-            : `+ ${locationCount} Locations`;
+          const displayLocation =
+            searchText.trim() === ""
+              ? `+ ${locationCount} Locations`
+              : survey.completions.some((location) =>
+                  location.locationName
+                    .toLowerCase()
+                    .includes(searchText.toLowerCase())
+                )
+              ? survey.completions.find((location) =>
+                  location.locationName
+                    .toLowerCase()
+                    .includes(searchText.toLowerCase())
+                ).locationName
+              : `+ ${locationCount} Locations`;
 
           return (
             <TouchableOpacity key={index} activeOpacity={0.95}>
               <View style={styles.cardContainer}>
-                <TouchableOpacity key={index} onPress={() => {
-                  if (searchText.trim() !== "" && survey.completions.some(location =>
-                      location.locationName.toLowerCase().includes(searchText.toLowerCase())
-                    )) {
-                    const location = survey.completions.find(location =>
-                      location.locationName.toLowerCase().includes(searchText.toLowerCase())
-                    );
-                    handleLocationNavigation(location.locationName, survey, location);
-                  } else {
-                    handleLocationPress(survey);
-                  }
-                }}>
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => {
+                    if (
+                      searchText.trim() !== "" &&
+                      survey.completions.some((location) =>
+                        location.locationName
+                          .toLowerCase()
+                          .includes(searchText.toLowerCase())
+                      )
+                    ) {
+                      const location = survey.completions.find((location) =>
+                        location.locationName
+                          .toLowerCase()
+                          .includes(searchText.toLowerCase())
+                      );
+                      handleLocationNavigation(
+                        location.locationName,
+                        survey,
+                        location
+                      );
+                    } else {
+                      handleLocationPress(survey);
+                    }
+                  }}
+                >
                   <View style={styles.cardContent}>
                     <Text style={styles.cardTitle}>{survey.surveyName}</Text>
                     <Text style={styles.cardlocation}>{displayLocation}</Text>
-                    <View style={[styles.infoContainer, { width: survey.expiryDate.length * 8.5 }]}>
-                      <Text style={styles.infoText}>{formatExpiryDate(survey.expiryDate)}</Text>
+                    <View
+                      style={[
+                        styles.infoContainer,
+                        { width: survey.expiryDate.length * 8.5 },
+                      ]}
+                    >
+                      <Text style={styles.infoText}>
+                        {formatExpiryDate(survey.expiryDate)}
+                      </Text>
                     </View>
                   </View>
                 </TouchableOpacity>
-                <View style={styles.shapeContainer}>
-                  <Text style={styles.shapeText}>{survey.count}</Text>
-                </View>
+                {surveyData.map((survey) => {
+                    const completionSurIds = survey.completions.map(completion => completion.surId);
+
+                    // Filter saved surveys to match both surId and checksum
+                    const matchingSavedSurveys = savedSurveys.filter(savedSurvey => 
+                        completionSurIds.includes(savedSurvey.surId) && savedSurvey.checksum === survey.checksum
+                    );
+
+                    var pendingCount = matchingSavedSurveys.length;
+
+                    // Debugging logs
+                    console.log('Matching Saved Surveys:', matchingSavedSurveys);
+                    console.log('Pending Count:', pendingCount);
+
+                    return (
+                        <View key={survey.surveyName} style={styles.shapeCount}>
+                            {pendingCount > 0 ? ( 
+                                <View style={styles.shapePendingContainer}>
+                                    <Text style={styles.shapeText}>{pendingCount}</Text> 
+                                </View>
+                            ) : null}
+                            <View style={styles.shapeContainer}>
+                                <Text style={styles.shapeText}>{survey.count}</Text>
+                            </View>
+                        </View>
+                    );
+                })}
               </View>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
-
 
       {/* Suggested Locations Modal */}
       <Modal
@@ -610,7 +715,12 @@ const Homepage = ({ navigation, route }) => {
         <TouchableWithoutFeedback>
           <View style={styles.modalOverlay}>
             <View style={styles.modalWrapper}>
-                <TapOnMyLocationSuggested onAddNewLocationPress={toggleLoc1Modal} onClose={toggleModal} onLocationSelect={handleLocationSelect} storeData={storeData}/>
+              <TapOnMyLocationSuggested
+                onAddNewLocationPress={toggleLoc1Modal}
+                onClose={toggleModal}
+                onLocationSelect={handleLocationSelect}
+                storeData={storeData}
+              />
             </View>
           </View>
         </TouchableWithoutFeedback>
@@ -626,13 +736,14 @@ const Homepage = ({ navigation, route }) => {
         <TouchableWithoutFeedback>
           <View style={styles.modalOverlay}>
             <View style={styles.modalWrapper}>
-                <AddNewLocation1 onClose={toggleLoc1Modal} onSurveyTap={handleSurveyTap} />
+              <AddNewLocation1
+                onClose={toggleLoc1Modal}
+                onSurveyTap={handleSurveyTap}
+              />
             </View>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-
-
 
       {/* Add New Location-2 Modal */}
       <Modal
@@ -644,12 +755,15 @@ const Homepage = ({ navigation, route }) => {
         <TouchableWithoutFeedback>
           <View style={styles.modalOverlay}>
             <View style={styles.modalWrapper}>
-              <AddNewLocation2 onClose={toggleLoc2Modal} surveySelected={surveySelect} onLocationTap={handleLocationTap}/>
+              <AddNewLocation2
+                onClose={toggleLoc2Modal}
+                surveySelected={surveySelect}
+                onLocationTap={handleLocationTap}
+              />
             </View>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-
 
       {/* Add New Location-3 Modal */}
       <Modal
@@ -661,16 +775,27 @@ const Homepage = ({ navigation, route }) => {
         <TouchableWithoutFeedback>
           <View style={styles.modalOverlay}>
             <View style={styles.modalWrapper}>
-              <AddNewLocation3 
-                onClose={toggleLoc3Modal} surveySelected={surveySelect} locationSelected={locSelect}
-                toggleModel1={toggleLoc1Modal} toggleModel2={toggleLoc2Modal} toggleModel3={toggleLoc3Modal} toggleModel={toggleModal}
-                handleLocationSelect={handleLocationSelect}/>
+              <AddNewLocation3
+                onClose={toggleLoc3Modal}
+                surveySelected={surveySelect}
+                locationSelected={locSelect}
+                toggleModel1={toggleLoc1Modal}
+                toggleModel2={toggleLoc2Modal}
+                toggleModel3={toggleLoc3Modal}
+                toggleModel={toggleModal}
+                handleLocationSelect={handleLocationSelect}
+              />
             </View>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
 
-      <LocationListModal locModalVisible={locModalVisible} hideLocModal={hideLocModal} authState={authState} selectedSurvey={selectedSurvey}/>
+      <LocationListModal
+        locModalVisible={locModalVisible}
+        hideLocModal={hideLocModal}
+        authState={authState}
+        selectedSurvey={selectedSurvey}
+      />
     </View>
   );
 };
@@ -684,12 +809,12 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0.5, 0.5, 0.5, 0.8)', // Semi-transparent to simulate blur
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0.5, 0.5, 0.5, 0.8)", // Semi-transparent to simulate blur
+    justifyContent: "flex-end",
   },
   modalWrapper: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   menuIcon: {
     position: "absolute",
@@ -699,8 +824,8 @@ const styles = StyleSheet.create({
     height: 30,
   },
   logoContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',  // Center the logo horizontally
+    justifyContent: "center",
+    alignItems: "center", // Center the logo horizontally
     height: 80,
   },
   logo: {
@@ -708,7 +833,7 @@ const styles = StyleSheet.create({
     height: 150,
   },
   touchableOpacity: {
-    position: 'absolute',
+    position: "absolute",
   },
   vectorIcon: {
     position: "absolute",
@@ -766,7 +891,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666666",
     flex: 1, // Take remaining space
-    fontFamily: 'Outfit-Regular', // Apply the global font family here
+    fontFamily: "Outfit-Regular", // Apply the global font family here
     fontWeight: "400",
   },
   gradientBackground: {
@@ -795,8 +920,22 @@ const styles = StyleSheet.create({
     color: "#666666",
   },
   responses: {
-    fontSize: 14, 
+    fontSize: 14,
     color: "#666666",
+  },
+  pendingSurveys: {
+    backgroundColor: "#3366ff",
+    padding: 5,
+    width: "90%",
+    borderRadius: 20,
+    alignItems: "center",
+    shadowColor: "#000000",
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  pendingSurveysText: {
+    color: "#ffffff",
   },
   cardScrollView: {
     // marginTop: 20,
@@ -814,19 +953,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 5,
-    marginLeft: '5%',
-    marginRight: '5%',
+    marginLeft: "5%",
+    marginRight: "5%",
     marginBottom: 10,
   },
   cardContent: {
     flex: 1,
-    width: '100%',
+    width: "100%",
   },
   cardTitle: {
     fontSize: 12,
     fontWeight: "700",
     marginBottom: 4,
-    color: 'black',
+    color: "black",
+    width: "100%",
   },
   cardlocation: {
     color: "#007bff",
@@ -836,26 +976,41 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     flexDirection: "row",
-    backgroundColor: '#F0F8FF',
+    backgroundColor: "#F0F8FF",
     paddingVertical: 6,
     justifyContent: "flex-start",
     borderRadius: 20,
     paddingLeft: 10,
   },
   infoText: {
-    width: '100%',
+    width: "100%",
     color: "black",
     fontSize: 11,
   },
   lightGrayText: {
-    color: '#999999', // Light gray color
+    color: "#999999", // Light gray color
     fontSize: 12, // Adjust the font size as needed
     marginTop: 5,
     marginLeft: 8,
   },
+  shapeCount: {
+    position: "absolute",
+    top: 50,
+    right: 10,
+    flexDirection: "row",
+  },
+  shapePendingContainer: {
+    justifyContent: "center",
+    alignItems: "center", // Center items horizontally
+    backgroundColor: "red",
+    height: 40,
+    width: 40,
+    borderRadius: 50,
+    marginRight: 5,
+  },
   shapeContainer: {
     justifyContent: "center",
-    alignItems: 'center', // Center items horizontally
+    alignItems: "center", // Center items horizontally
     backgroundColor: "#333333",
     height: 40,
     width: 40,
@@ -863,22 +1018,20 @@ const styles = StyleSheet.create({
   },
   shapeText: {
     fontSize: 12, // Adjust font size as needed
-    color: '#ffffff',
+    color: "#ffffff",
   },
-
-
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorText: {
-    color: 'red',
+    color: "red",
     fontSize: 16,
   },
 });

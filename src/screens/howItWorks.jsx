@@ -4,6 +4,7 @@ import Text from "../components/text";
 import { useNavigation } from "@react-navigation/native";
 import Video from 'react-native-video';
 import { UserContext } from '../contexts/userContext';
+import { ScrollView } from "react-native-gesture-handler";
 
 const HowItWorks = () => {
   const navigation = useNavigation();
@@ -70,53 +71,55 @@ const HowItWorks = () => {
           </TouchableOpacity>
         )}
       </View>
-      <Step
-        stepNumber="01"
-        title="Choose Location"
-        description="Select the GPS store locator and verify store"
-        separatorPosition="top"
-      />
-      <Step
-        stepNumber="02"
-        title="Choose Survey"
-        description="Select the survey you want to complete first"
-        separatorPosition="middle"
-      />
-      <Step
-        stepNumber="03"
-        title="Fill Survey"
-        description="Fill the survey and Hit Submit!"
-        separatorPosition="bottom"
-      />
-      <View style={styles.deviceContainer}>
-        <Image
-          style={styles.deviceImage}
-          resizeMode="contain"
-          source={require("../images/device.png")}
+      <ScrollView>
+        <Step
+          stepNumber="01"
+          title="Choose Location"
+          description="Select the GPS store locator and verify store"
+          separatorPosition="top"
         />
-        <TouchableOpacity
-          style={styles.deviceScreen}
-          onPress={handlePlayPause}
-        >
-          <Video
-            source={require("../images/video.mp4")}
-            ref={videoRef} // Reference to the video player
-            style={styles.insidePicture}
-            paused={!isPlaying}
-            resizeMode="cover"
-            onEnd={handleVideoEnd} // Handle video end event
+        <Step
+          stepNumber="02"
+          title="Choose Survey"
+          description="Select the survey you want to complete first"
+          separatorPosition="middle"
+        />
+        <Step
+          stepNumber="03"
+          title="Fill Survey"
+          description="Fill the survey and Hit Submit!"
+          separatorPosition="bottom"
+        />
+        <View style={styles.deviceContainer}>
+          <Image
+            style={styles.deviceImage}
+            resizeMode="contain"
+            source={require("../images/device.png")}
           />
-          {!isPlaying && (
-            <TouchableOpacity style={styles.playButton} onPress={handlePlayPause}>
-              <Image
-                style={styles.playIcon}
-                resizeMode="cover"
-                source={require("../images/play.png")}
-              />
-            </TouchableOpacity>
-          )}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={styles.deviceScreen}
+            onPress={handlePlayPause}
+          >
+            <Video
+              source={require("../images/video.mp4")}
+              ref={videoRef} // Reference to the video player
+              style={styles.insidePicture}
+              paused={!isPlaying}
+              resizeMode="cover"
+              onEnd={handleVideoEnd} // Handle video end event
+            />
+            {!isPlaying && (
+              <TouchableOpacity style={styles.playButton} onPress={handlePlayPause}>
+                <Image
+                  style={styles.playIcon}
+                  resizeMode="cover"
+                  source={require("../images/play.png")}
+                />
+              </TouchableOpacity>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </View>
   );
 };
@@ -243,21 +246,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 20,
+    marginBottom: 20,
     position: "relative",
   },
   deviceImage: {
-    width: 350,
-    height: 450,
+    width: "100%",
+    height: undefined,
+    aspectRatio: 350 / 450,
   },
   deviceScreen: {
     position: "absolute",
-    top: 3,
-    left: 80,
-    width: 200,
-    height: 450,
-    borderTopLeftRadius: 33,
-    borderTopRightRadius: 33,
+    top: "1.4%",
+    left: "21.2%",
+    width: "57.5%", 
+    height: "97%", 
+    borderRadius: 33,
     overflow: "hidden",
+
   },
   insidePicture: {
     width: "100%",
