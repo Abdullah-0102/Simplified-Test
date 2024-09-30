@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import LinearGradient from "react-native-linear-gradient";
 import Text from '../components/text';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ProgressBar } from 'react-native-paper'; // Make sure to install react-native-paper
 
 import TapOnMyLocationSuggested from "./tapOnLocation";
 import AddNewLocation1 from "./addNewLocation-1";
@@ -28,6 +29,10 @@ const Homepage = ({ navigation, route }) => {
   const [selectedSurvey, setSelectedSurvey] = useState(null);
   const [storeData, setStoreData] = useState([]); // New state for storing store data
   const [token, setToken] = useState(route.params?.token || ''); // Use token from route or empty string
+  const [savedSurveys, setSavedSurveys] = useState([]); // State for saved surveys
+  const [hasSavedSurveys, setHasSavedSurveys] = useState(false);
+  const [loading1, setLoading1] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // Track upload progress
 
 
   const { authState } = useContext(AuthContext);
@@ -36,23 +41,229 @@ const Homepage = ({ navigation, route }) => {
   const locationsObject = authState.locations || {};
   const locationNames = Object.values(locationsObject).flatMap(loc => Object.values(loc));  // Extract location names from nested objects
 
+
   useEffect(() => {
-    const fetchToken = async () => {
-      if (!token) {
-        const storedToken = await AsyncStorage.getItem('userToken');
-        if (storedToken) {
-          setToken(storedToken); // Set token from AsyncStorage if available
-        } else {
-          // If no token is available, redirect to the login screen
-          navigation.navigate('Login');
+    const checkSavedSurveys = async () => {
+        const existingSurveys = await AsyncStorage.getItem('savedSurveys');
+        if (existingSurveys) {
+            const parsedSurveys = JSON.parse(existingSurveys);
+            setSavedSurveys(parsedSurveys);
+            setHasSavedSurveys(parsedSurveys.length > 0);
         }
-      }
+        else {
+          console.log('No Saved Surveys.');
+        }
     };
 
-    fetchToken();
-  }, [token]);
+    checkSavedSurveys();
+  }, []);
 
 
+  useEffect(() => {
+    const fetchToken = async () => {
+        const storedToken = await AsyncStorage.getItem('userToken');
+        if (storedToken) {
+            setToken(storedToken); // Set token from AsyncStorage if available
+            console.log('Token retrieved:', storedToken);
+        } else {
+            // If no token is available, redirect to the login screen
+            console.log('No token found, navigating to login.');
+            navigation.navigate('Login');
+        }
+      };
+      fetchToken();
+  }, [navigation]); 
+
+
+  const fetchSavedSurveys = async () => {
+      if (!token) {
+          console.error('No valid token found. Cannot fetch saved surveys.');
+          return; // Exit if token is invalid
+      }
+
+      setLoading1(true);
+      setUploadProgress(0); // Reset progress
+
+      try {
+          const existingSurveys = await AsyncStorage.getItem('savedSurveys');
+          if (existingSurveys) {
+              const parsedSurveys = JSON.parse(existingSurveys);
+              console.log('Parsed Surveys:', parsedSurveys);
+              setSavedSurveys(parsedSurveys);
+
+              if (parsedSurveys.length > 0) {
+                  const totalQuestions = parsedSurveys.reduce((total, survey) => total + survey.data.length, 0);
+                  let processedQuestions = 0;
+                  for (let i = 0; i < parsedSurveys.length; i++) {
+                      const survey = parsedSurveys[i];
+                      const { surId, lat, lon } = survey;
+
+                      console.log(`Starting survey ID: ${surId}`);
+
+                      // Start the survey first
+                      const startResponse = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/start/${lat}/${lon}`, {
+                          method: 'PATCH',
+                          headers: {
+                              'x-st3-token': token,
+                          },
+                      });
+
+                      const rawStartResponse = await startResponse.text();
+                      console.log('Raw start response:', rawStartResponse);
+
+                      if (!startResponse.ok) {
+                          console.error('Error starting survey:', rawStartResponse);
+                          continue; // Skip to the next survey if starting fails
+                      }
+
+                      console.log('Survey started successfully');
+
+                      for (const question of survey.data) {
+                          const { questionId, pluginCode, answer } = question;
+
+                          await submitAnswer(surId, questionId, answer, token, pluginCode);
+
+                          // Update processed questions count
+                          processedQuestions++;
+                          setUploadProgress((processedQuestions / totalQuestions) * 100);
+
+                          if (pluginCode === 'IMGL' && Array.isArray(answer) && answer.length > 0) {
+                              console.log('Uploading images for question:', questionId);
+                              await uploadImages(surId, questionId, answer, token);
+                          }
+                      }
+                  }
+                  await AsyncStorage.removeItem('savedSurveys');
+                  console.log('All saved surveys uploaded successfully!');
+              } else {
+                  console.log('No saved surveys found.');
+              }
+          } else {
+              console.log('No saved surveys found.');
+          }
+      } catch (error) {
+          console.error('Failed to retrieve saved surveys:', error);
+      } finally {
+        setLoading1(false); // Ensure loading is set to false at the end
+      }
+  };
+
+
+  const uploadImages = async (surId, questionId, images, token) => {
+    for (let index = 0; index < images.length; index++) {
+        const image = images[index];
+
+        // Create a FormData object
+        const formData = new FormData();
+
+        // Determine the file type based on the image name or URI
+        const fileType = image.name.split('.').pop().toLowerCase(); // Get the file extension
+        const mimeType = `image/${fileType}`; // Construct the MIME type
+
+        formData.append('file', {
+            uri: image.uri, // The URI of the image
+            name: image.name, // The name of the file
+            type: mimeType, // Set the MIME type dynamically
+        });
+
+        console.log(`Uploading image ${index + 1} for question ${questionId}...`);
+
+        try {
+            const uploadResponse = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/upload/${questionId}/${index}`, {
+                method: 'POST',
+                headers: {
+                    'x-st3-token': token,
+                },
+                body: formData,
+            });
+
+            // Log the response status code
+            console.log(`Response status for question ${questionId}, image ${index}:`, uploadResponse.status);
+
+            // Check if the response is OK (status code 204)
+            if (uploadResponse.ok) {
+                const rawUploadResponse = await uploadResponse.text();
+                console.log(`Upload response for question ${questionId}, image ${index}:`, rawUploadResponse);
+            } else {
+                console.error(`Failed to upload image for question ${questionId}:`, uploadResponse.statusText);
+                throw new Error(`Failed to upload image for question ${questionId}: ${uploadResponse.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error);
+        }
+    }
+  };
+
+  // Submit answer function
+  const submitAnswer = async (surId, questionId, answer, token, pluginCode) => {
+      let body;
+
+      console.log(`Question ID: ${questionId}, Answer:`, answer);
+
+      // Check if the answer is valid for submission
+      if (pluginCode === 'IMGL') {
+          // Handle image uploads
+          const finalAnswer = JSON.stringify(answer.map((img, index) => ({
+              key: index.toString(),
+              name: img.name,
+              uri: img.uri // Include URI if needed
+          })));
+
+          body = JSON.stringify({
+              question_id: questionId,
+              answers: {
+                  answer_content: [finalAnswer]
+              }
+          });
+      } else if (pluginCode === 'CHO1' || pluginCode === 'CHOM') {
+          // Handle choice questions
+          body = JSON.stringify({
+              question_id: questionId,
+              answers: {
+                  option: Array.isArray(answer) ? answer : [answer]
+              }
+          });
+      } else if (pluginCode === 'TXT' || pluginCode === 'MNY' || pluginCode === 'NUM' || pluginCode === 'STR5') {
+          // Ensure that text responses are handled correctly
+          body = JSON.stringify({
+              question_id: questionId,
+              answers: {
+                  answer_content: [answer] // Wrap the answer in an array
+              }
+          });
+      } else {
+          // Log and skip submission for unsupported question types
+          console.log(`Skipping submission for Question ID: ${questionId} due to un-tackled pluginCode: ${pluginCode}`);
+          return; // Exit the function early
+      }
+
+      console.log(`Submitting answer for question ${questionId}:`, body);
+
+      try {
+          const response = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/answer`, {
+              method: 'PATCH',
+              headers: {
+                  'x-st3-token': token,
+                  'Content-Type': 'application/json', // Ensure the content type is set correctly
+              },
+              body: body,
+          });
+
+          const rawAnswerResponse = await response.text();
+          console.log('Raw answer response:', rawAnswerResponse);
+
+          if (!response.ok) {
+              console.error(`Failed to submit answer for question ${questionId}:`, rawAnswerResponse);
+              throw new Error(`Failed to submit answer for question ${questionId}: ${response.statusText}`);
+          }
+      } catch (error) {
+          console.error('Error in submission process:', error);
+      }
+  };
+
+
+
+  // Fetch Survey Data
   useEffect(() => {
     const fetchSurveyData = async () => {
       try {
@@ -145,6 +356,14 @@ const Homepage = ({ navigation, route }) => {
       shapeText: "200",
     },
   ];
+
+  const handleImageClick = () => {
+    if (hasSavedSurveys) {
+        fetchSavedSurveys(); // Call fetchSavedSurveys if there are saved surveys
+    } else {
+        handleImagePress(); // Otherwise, call the existing handler
+    }
+  };
 
   const toggleModal = () => {
     setIsModalVisible(!isModalVisible);
@@ -271,7 +490,6 @@ const Homepage = ({ navigation, route }) => {
       <TouchableOpacity style={styles.touchableOpacity} onPress={handleGetHelpPress}> 
         <Image
           style={styles.menuIcon}
-          resizeMode="cover"
           source={require("../images/drawer-icon.png")}
         />
       </TouchableOpacity>
@@ -279,21 +497,26 @@ const Homepage = ({ navigation, route }) => {
         <Image
           source={require('../images/logo-1.png')}
           style={styles.logo}
-          resizeMode="contain"
         />
       </View>
-      <TouchableOpacity style={styles.touchableOpacity} onPress={handleImagePress}> 
-        <Image
-          style={styles.vectorIcon}
-          resizeMode="cover"
-          source={require("../images/vector1.png")}
-        />
-      </TouchableOpacity>
+      {loading1 ? (
+        <View style={styles.loadingContainer1}>
+            <ActivityIndicator size="large" color="#0000ff" />
+            <Text style={styles.loadingText1}>Uploading... {uploadProgress}%</Text>
+            <ProgressBar progress={uploadProgress / 100} color="#6200ee" style={styles.progressBar1} />
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.touchableOpacity} onPress={handleImageClick}>
+            <Image
+                style={[styles.vectorIcon, hasSavedSurveys && styles.redIcon]}
+                source={require("../images/vector1.png")}
+            />
+        </TouchableOpacity>
+      )}
       <View style={styles.searchContainer}>
         <View style={styles.searchBox}>
           <Image
             style={styles.searchIcon}
-            resizeMode="cover"
             source={require("../images/search-icon.png")}
           />
           <TextInput
@@ -318,7 +541,6 @@ const Homepage = ({ navigation, route }) => {
           >
             <Image
               style={styles.locationIcon}
-              resizeMode="cover"
               source={require("../images/location-icon.png")}
             />
           </LinearGradient>
@@ -494,6 +716,30 @@ const styles = StyleSheet.create({
     right: -157,
     width: 30,
     height: 30,
+  },
+  redIcon: {
+    tintColor: 'red', // Change color to red
+  },
+  loadingContainer1: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0.5, 0.5, 0.5, 0.8)', // Semi-transparent background
+    zIndex: 1000, // Ensure it appears above other elements
+  },
+  loadingText1: {
+      marginTop: 20,
+      fontSize: 18,
+      color: '#fff', // Change text color for better visibility
+  },
+  progressBar1: {
+      width: '80%',
+      height: 10,
+      marginTop: 10,
   },
   searchContainer: {
     flexDirection: "row",

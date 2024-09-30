@@ -46,14 +46,6 @@ const SpecificSurvey = ({ route }) => {
     fetchToken();
   }, [token]);
 
-
-  const onChangeDate = (event, selectedDate) => {
-    const currentDate = selectedDate || date;
-    setShowDatePicker(false);
-    setDate(currentDate);
-    handleAnswerChange(currentDate.toISOString(), questions[currentQuestionIndex]);
-  };
-
   
   const navigation = useNavigation();
   
@@ -328,52 +320,54 @@ const SpecificSurvey = ({ route }) => {
           </View>
         );
   
-      case 'IMGL': // Image Upload
+      case 'IMGL': 
+        const storedImages = answers[question.pluginCode] || [];
+    
         return (
-          <View style={styles.uploadContainer}>
-            {selectedImages.length === 0 ? (
-              <Image
-                style={styles.groupIcon}
-                resizeMode="cover"
-                source={require("../images/upload.png")}
-              />
-            ) : (
-              <View style={styles.selectedImagesContainer}>
-                {selectedImages.slice(0, 2).map((uri, index) => (
-                  <View key={index} style={styles.imageWrapper}>
+            <View style={styles.uploadContainer}>
+                {selectedImages.length === 0 ? (
                     <Image
-                      style={styles.selectedImage}
-                      resizeMode="cover"
-                      source={{ uri }}
+                        style={styles.groupIcon}
+                        resizeMode="cover"
+                        source={require("../images/upload.png")}
                     />
-                    <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(uri)}>
-                      <Text style={styles.removeImageText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-                {selectedImages.length > 2 && (
-                  <TouchableOpacity onPress={toggleModal}>
-                    <Text style={styles.moreImagesText}>+{selectedImages.length - 2} more</Text>
-                  </TouchableOpacity>
+                ) : (
+                    <View style={styles.selectedImagesContainer}>
+                        {selectedImages.slice(0, 2).map((image, index) => (
+                            <View key={index} style={styles.imageWrapper}>
+                                <Image
+                                    style={styles.selectedImage}
+                                    resizeMode="cover"
+                                    source={{ uri: image.uri }} // Ensure uri is a string
+                                />
+                                <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(image.uri)}>
+                                    <Text style={styles.removeImageText}>×</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                        {selectedImages.length > 2 && (
+                            <TouchableOpacity onPress={toggleModal}>
+                                <Text style={styles.moreImagesText}>+{selectedImages.length - 2} more</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 )}
-              </View>
-            )}
-        
-            {selectedImages.length > 0 && (
-              <TouchableOpacity style={styles.addMoreButton} onPress={requestPermissions}>
-                <Text style={styles.addMoreButtonText}>Add more +</Text>
-              </TouchableOpacity>
-            )}
-        
-            <TouchableOpacity onPress={requestPermissions}>
-              <View style={styles.textContainer}>
-                <Text style={[styles.text2, styles.typo]}>Upload Photo</Text>
-                <Text style={[styles.text3, styles.typo]}>
-                  Take one or more photos
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+    
+                {selectedImages.length > 0 && (
+                    <TouchableOpacity style={styles.addMoreButton} onPress={() => requestPermissions(question)}>
+                        <Text style={styles.addMoreButtonText}>Add more +</Text>
+                    </TouchableOpacity>
+                )}
+    
+                <TouchableOpacity onPress={() => requestPermissions(question)}>
+                    <View style={styles.textContainer}>
+                        <Text style={[styles.text2, styles.typo]}>Upload Photo</Text>
+                        <Text style={[styles.text3, styles.typo]}>
+                            Take one or more photos
+                        </Text>
+                    </View>
+                </TouchableOpacity>
+            </View>
         );
   
       case 'TXT': // Monetary Input
@@ -466,39 +460,62 @@ const SpecificSurvey = ({ route }) => {
   };
   
 
-  const requestPermissions = async () => {
+  const requestPermissions = async (question) => {
     try {
       const { status: cameraStatus } = await requestCameraPermissions();
   
       if (cameraStatus !== 'granted') {
         Alert.alert('Camera permissions are required to capture photos.');
       } else {
-        handleImagePick(true);
+        handleImagePick(true, question);
       }
     } catch (error) {
       console.error('Error requesting permissions:', error);
     }
   };
 
-  const handleImagePick = async (fromCamera) => {
+  
+  const handleImagePick = async (fromCamera, question) => {
     try {
-      if (fromCamera) {
-        const result = await ImagePicker.launchCameraAsync({
-          allowsEditing: false,
-          quality: 1,
-        });
+        if (fromCamera) {
+            const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: false,
+                quality: 1,
+            });
 
-        if (!result.canceled) {
-          setSelectedImages([...selectedImages, ...result.assets.map(asset => asset.uri)]);
+            if (!result.canceled && result.assets.length > 0) {
+                const image = result.assets[0];
+                const imageDetails = {
+                    uri: image.uri,
+                    name: image.uri.split('/').pop(), // Extract file name
+                    type: image.type || 'image/jpeg', // Default type if not provided
+                };
+
+                // Store image details in state
+                setSelectedImages(prevImages => {
+                    const updatedImages = [...prevImages, imageDetails];
+                    // Update answers array
+                    answers[question.pluginCode] = updatedImages;
+                    return updatedImages;
+                });
+
+                // Log the image details to console
+                console.log('Captured Image Details:', imageDetails);
+            }
         }
-      }
     } catch (error) {
-      console.log('Error while capturing image: ', error);
+        console.log('Error while capturing image: ', error);
     }
   };
 
+
   const removeImage = (uri) => {
-    setSelectedImages(selectedImages.filter(imageUri => imageUri !== uri));
+    setSelectedImages(prevImages => {
+        const updatedImages = prevImages.filter(image => image.uri !== uri);
+        // Update answers array
+        // answers[question.pluginCode] = updatedImages;
+        return updatedImages;
+    });
   };
 
   const toggleModal = () => {
@@ -517,8 +534,10 @@ const SpecificSurvey = ({ route }) => {
     setIsSuccessModalVisible(!isSuccessModalVisible);
   };
 
+
+
   const submitSurvey = async () => {
-    const { surId } = selectedLocation; 
+    const { surId } = selectedLocation;
     const { lat, lon } = coordinates;
 
     console.log('Submitting survey...');
@@ -529,106 +548,280 @@ const SpecificSurvey = ({ route }) => {
     setLoading(true); // Start loading
 
     try {
-        // Step 1: Start Submission
         const startResponse = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/start/${lat}/${lon}`, {
-            method: 'PATCH',
-            // headers: {
-            //     'x-st3-token': token,
-            //     'Content-Type': 'application/json',
-            // },
-        });
-
-        if (!startResponse.ok) {
-            const errorText = await startResponse.text();
-            if (startResponse.status === 409) { // Conflict status for already started session
-                console.log('Survey already started for this location. Proceeding to submit answers.');
-            } else {
-                throw new Error(`Failed to start submission: ${startResponse.statusText} - ${errorText}`);
-            }
-        } else {
-            const startData = await startResponse.json();
-            console.log('Survey started successfully:', startData);
-        }
-
-        // Optional: Add a delay before submitting answers
-        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
-
-        // Step 2: Submit Answer for First Question (ID 0)
-        const questionId = 0; // ID of the first question
-        const question = questions[questionId]; // Get the question object
-        const answer = answers[question.pluginCode]; // Retrieve the answer using pluginCode
-
-        console.log(`Answer retrieved for question ID ${questionId}:`, answer); // Log the retrieved answer
-
-        console.log(`Submitting answer for question ID: ${questionId}`);
-        await submitAnswer(surId, questionId, answer, token);
-
-
-        // Step 3: End Submission
-        const endResponse = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/end/${new Date().toISOString()}`, {
             method: 'PATCH',
             headers: {
                 'x-st3-token': token,
-                'Content-Type': 'application/json',
             },
         });
 
-        if (!endResponse.ok) {
-            const errorText = await endResponse.text();
-            throw new Error(`Failed to end submission: ${endResponse.statusText} - ${errorText}`);
-        }
-        console.log('Survey ended successfully.');
-        toggleSubmitModal(); // Close the submit modal
-        toggleSuccessModal(); // Show success modal
+        const rawStartResponse = await startResponse.text();
+        console.log('Raw start response:', rawStartResponse);
 
+        if (!startResponse.ok) {
+            const errorData = rawStartResponse ? JSON.parse(rawStartResponse) : null;
+
+            if (errorData && errorData.error) {
+                console.log('Error data:', errorData);
+
+                if (errorData.error.includes("Unknown completion request")) {
+                    console.log('Survey has already been completed. Restarting the survey...');
+                    await restartSurvey(surId, lat, lon);
+                    return; // Exit early to avoid immediate resubmission
+                } else {
+                    throw new Error(`Failed to start submission: ${errorData.error || startResponse.statusText}`);
+                }
+            }
+        }
+
+        console.log('Survey started successfully');
+
+        // Collect answers for each question
+        const surveyData = []; // Array to hold survey data for later storage
+        for (const question of questions) {
+            let answer = answers[question.pluginCode] || [];
+
+            // Handle different plugin codes
+            if (question.pluginCode === 'CHO1' || question.pluginCode === 'CHOM') {
+                answer = answers[question.pluginCode] || [];
+            } else if (question.pluginCode === 'IMGL') {
+                const imageDetails = selectedImages.map(image => ({
+                    uri: image.uri,
+                    name: image.name,
+                    type: image.type,
+                }));
+                const uniqueImageNames = new Set([...answer.map(img => img.name), ...imageDetails.map(img => img.name)]);
+                const uniqueImages = Array.from(uniqueImageNames).map(name => imageDetails.find(img => img.name === name)).filter(img => img);
+
+                answers[question.pluginCode] = uniqueImages; // Store updated answer back to answers
+                answer = uniqueImages; // Update answer to the unique images
+            }
+
+            console.log(`Question ID: ${question.id}, Answer:`, answer); // Log the answer
+            if (answer) { // Ensure there is something to submit
+                // Prepare survey data for saving later
+                surveyData.push({ questionId: question.id, answer, pluginCode: question.pluginCode });
+
+                // If sending now, submit the answer first
+                if (sendNowActive) {
+                    await submitAnswer(surId, question.id, answer, token, question.pluginCode);
+
+                    // If the question is of type IMGL, upload images separately
+                    if (question.pluginCode === 'IMGL') {
+                        await uploadImages(surId, question.id, answer, token);
+                    }
+                }
+            } else {
+                console.log(`No valid answer found for question ID: ${question.id}`);
+            }
+        }
+
+        // If sending later, save the survey data
+        if (!sendNowActive) {
+            await saveSurveyData(surveyData, surId, lat, lon); // Pass surId, lat, and lon
+            Alert.alert(
+                'Survey Saved',
+                'Your survey has been saved and will be sent later when you are connected to Wi-Fi.',
+                [
+                    {
+                        text: 'OK',
+                        onPress: () => {
+                            navigation.goBack();
+                        },
+                    },
+                ],
+                { cancelable: false } // Optional: Prevents dismissing the alert by tapping outside
+            );
+        } else {
+            toggleSubmitModal(); 
+            toggleSuccessModal(); 
+        }
     } catch (error) {
         console.error('Error submitting survey:', error);
-        Alert.alert('Submission failed', 'There was an error submitting the survey. Please try again.');
-    } 
-    finally {
-      setLoading(false); // Stop loading
+        // Save survey data locally if there was an error
+        await saveSurveyData(surveyData, surId, lat, lon); // Save the survey data
+        Alert.alert(
+            'Submission Failed',
+            'Your survey could not be submitted live. It has been saved for later submission.',
+            [
+                {
+                    text: 'OK',
+                    onPress: () => {
+                        navigation.goBack();
+                    },
+                },
+            ],
+            { cancelable: false } // Optional: Prevents dismissing the alert by tapping outside
+        );
+    } finally {
+        setLoading(false); 
     }
   };
 
-// Helper function to submit an answer
-  const submitAnswer = async (surId, questionId, answer, token) => {
-    const body = JSON.stringify({
-        question_id: questionId,
-        answers: {
-            option: Array.isArray(answer) ? answer : [answer] // Ensure it's an array for multiple choices
-        }
-    });
 
-    // Log the body being sent
-    console.log(`Submitting answer for question ${questionId}:`, body);
-
-    const response = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/answer`, {
-        method: 'PATCH',
-        headers: {
-            'x-st3-token': token,
-            'Content-Type': 'application/json',
-        },
-        body: body,
-    });
-
-    console.log(token);
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to submit answer for question ${questionId}: ${response.statusText} - ${errorText}`);
-    }
-    console.log(`Answer submitted for question ${questionId} successfully.`);
+  // Function to save survey data locally
+  const saveSurveyData = async (surveyData, surId, lat, lon) => {
+    try {
+          await AsyncStorage.setItem('savedSurveys', JSON.stringify([])); // Optional: Clear previous data
+          const existingSurveys = await AsyncStorage.getItem('savedSurveys');
+          const surveys = existingSurveys ? JSON.parse(existingSurveys) : [];
+          const newSurvey = {
+            surId,
+            lat,
+            lon,
+            data: surveyData // Include the survey data (questions and answers)
+          };
+          surveys.push(newSurvey); // Append new survey object directly
+          await AsyncStorage.setItem('savedSurveys', JSON.stringify(surveys));
+          console.log('Survey data saved successfully!');
+          const existingSurvey1 = await AsyncStorage.getItem('savedSurveys');
+          console.log(existingSurvey1);
+      } catch (error) {
+          console.error('Failed to save survey data:', error);
+      }
   };
 
+  // Function to upload saved surveys
+  const uploadSavedSurveys = async () => {
+      try {
+          const existingSurveys = await AsyncStorage.getItem('savedSurveys');
+          if (existingSurveys) {
+              const surveys = JSON.parse(existingSurveys);
+              for (const survey of surveys) {
+                  const { questionId, answer, pluginCode } = survey;
+                  await submitAnswer(surId, questionId, answer, token, pluginCode);
+              }
+              // Clear saved surveys after successful upload
+              await AsyncStorage.removeItem('savedSurveys');
+              console.log('All saved surveys uploaded successfully!');
+          } else {
+              console.log('No saved surveys found.');
+          }
+      } catch (error) {
+          console.error('Failed to upload saved surveys:', error);
+      }
+  };
 
-// Function to retrieve answers (implement this based on your state structure)
-const getAnswers = () => {
-    // Return the answers object in the required format
-    return answers; // Adjust this line as necessary
-};
+  // Function to restart the survey
+  const restartSurvey = async (surId, lat, lon) => {
+      console.log(`Restarting survey ID: ${surId} at latitude: ${lat} and longitude: ${lon}`);
+      // Reset relevant state here
 
+      Alert.alert('Survey Restarted', 'You can now submit your answers again.');
+  };
 
-  
+  // Function to upload images
+  const uploadImages = async (surId, questionId, selectedImages, token) => {
+      for (let index = 0; index < selectedImages.length; index++) {
+          const image = selectedImages[index];
+
+          // Create a FormData object
+          const formData = new FormData();
+          
+          // Determine the file type based on the image name or URI
+          const fileType = image.name.split('.').pop().toLowerCase(); // Get the file extension
+          const mimeType = `image/${fileType}`; // Construct the MIME type
+
+          formData.append('file', {
+              uri: image.uri, // The URI of the image
+              name: image.name, // The name of the file
+              type: mimeType, // Set the MIME type dynamically
+          });
+
+          console.log(`Uploading image ${index + 1} for question ${questionId}...`);
+
+          try {
+              const uploadResponse = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/upload/${questionId}/${index}`, {
+                  method: 'POST',
+                  headers: {
+                      'x-st3-token': token,
+                  },
+                  body: formData,
+              });
+
+              // Log the response status code
+              console.log(`Response status for question ${questionId}, image ${index}:`, uploadResponse.status);
+
+              // Check if the response is OK (status code 204)
+              if (uploadResponse.ok) {
+                  const rawUploadResponse = await uploadResponse.text();
+                  console.log(`Upload response for question ${questionId}, image ${index}:`, rawUploadResponse);
+              } else {
+                  console.error(`Failed to upload image for question ${questionId}:`, uploadResponse.statusText);
+                  throw new Error(`Failed to upload image for question ${questionId}: ${uploadResponse.statusText}`);
+              }
+          } catch (error) {
+              console.error('Error uploading image:', error);
+          }
+      }
+  };
+
+  // Submit answer function
+  const submitAnswer = async (surId, questionId, answer, token, pluginCode) => {
+      let body;
+
+      console.log(`Question ID: ${questionId}, Answer:`, answer);
+
+      // Check if the answer is valid for submission
+      if (pluginCode === 'IMGL') {
+          // Handle image uploads
+          const finalAnswer = JSON.stringify(answer.map((img, index) => ({
+              key: index.toString(),
+              name: img.name,
+              uri: img.uri // Include URI if needed
+          })));
+
+          body = JSON.stringify({
+              question_id: questionId,
+              answers: {
+                  answer_content: [finalAnswer]
+              }
+          });
+      } else if (pluginCode === 'CHO1' || pluginCode === 'CHOM') {
+          // Handle choice questions
+          body = JSON.stringify({
+              question_id: questionId,
+              answers: {
+                  option: Array.isArray(answer) ? answer : [answer]
+              }
+          });
+      } else if (pluginCode === 'TXT' || pluginCode === 'MNY' || pluginCode === 'NUM' || pluginCode === 'STR5') {
+          // Ensure that text responses are handled correctly
+          body = JSON.stringify({
+              question_id: questionId,
+              answers: {
+                  answer_content: [answer] // Wrap the answer in an array
+              }
+          });
+      } else {
+          // Log and skip submission for unsupported question types
+          console.log(`Skipping submission for Question ID: ${questionId} due to un-tackled pluginCode: ${pluginCode}`);
+          return; // Exit the function early
+      }
+
+      console.log(`Submitting answer for question ${questionId}:`, body);
+
+      try {
+          const response = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/answer`, {
+              method: 'PATCH',
+              headers: {
+                  'x-st3-token': token,
+                  'Content-Type': 'application/json', // Ensure the content type is set correctly
+              },
+              body: body,
+          });
+
+          const rawAnswerResponse = await response.text();
+          console.log('Raw answer response:', rawAnswerResponse);
+
+          if (!response.ok) {
+              console.error(`Failed to submit answer for question ${questionId}:`, rawAnswerResponse);
+              throw new Error(`Failed to submit answer for question ${questionId}: ${response.statusText}`);
+          }
+      } catch (error) {
+          console.error('Error in submission process:', error);
+      }
+  };
   
 
   return (
@@ -700,111 +893,115 @@ const getAnswers = () => {
         </TouchableOpacity>
       )}
 
-
       {/* Success Modal */}
       <Modal visible={isSuccessModalVisible} transparent={true} animationType="fade">
-        <BlurView
-          style={styles.blur}
-          blurType="light"
-          blurAmount={5}
-          reducedTransparencyFallbackColor="white"
-        />
-        <View style={styles.modalContainer}>
-          <View style={styles.innerModal}>
-            <Image
-              style={styles.tickImage}
-              source={require('../images/tick-1.png')}
-              resizeMode="cover"
-            />
-            <Text style={styles.successText}>Survey Submitted Successfully</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
+          <BlurView
+              style={styles.blur}
+              blurType="light"
+              blurAmount={5}
+              reducedTransparencyFallbackColor="white"
+          />
+          <View style={styles.modalContainer}>
+              <View style={styles.innerModal}>
+                  <Image
+                      style={styles.tickImage}
+                      source={require('../images/tick-1.png')}
+                      resizeMode="cover"
+                  />
+                  <Text style={styles.successText}>Survey Submitted Successfully</Text>
+                  <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
+                      <Text style={styles.closeButtonText}>Close</Text>
+                  </TouchableOpacity>
+              </View>
           </View>
-        </View>
       </Modal>
 
-      {/* Survey Modal */}
+
+      {/* Survey Submission Modal */}
       <Modal visible={isSubmitModalVisible} transparent={true} animationType="fade">
-        <BlurView
-          style={styles.blurBackground}
-          blurType="light"
-          blurAmount={2}
-          reducedTransparencyFallbackColor="white"
-        />
+          <BlurView
+              style={styles.blurBackground}
+              blurType="light"
+              blurAmount={2}
+              reducedTransparencyFallbackColor="white"
+          />
           <View style={styles.bottomModal}>
-            <View style={styles.surveyParent}>
-              <Text style={styles.survey}>Survey</Text>
-              <TouchableOpacity onPress={toggleSubmitModal}>
-                <Image
-                  style={styles.iconX}
-                  resizeMode="cover"
-                  source={require("../images/cross.png")}
-                />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.rectangle} />
-            <View style={styles.textGroup}>
-              <Text style={styles.text4}>Recurring Reload Copying 2 Survey Machine</Text>
-              <View style={styles.frameView}>
-                <TouchableOpacity style={styles.sendNowParent} onPress={toggleSendNow}>
-                  <Text style={styles.sendNow}>Send Now</Text>
-                  <View style={styles.switchContainer}>
-                    <Switch
-                      trackColor={{ false: '#767577', true: '#81b0ff' }}
-                      thumbColor={sendNowActive ? '#007bff' : '#f4f3f4'}
-                      onValueChange={toggleSendNow}
-                      value={sendNowActive}
-                      style={styles.switch} 
-                      touchSoundDisabled={true}
-                    />
-                  </View>
-                </TouchableOpacity>
-                <Text style={[styles.text5, sendNowActive ? styles.textActive : styles.textInactive]}>
-                  {sendNowActive ? "Results will be sent now." : "You can send later."}
-                </Text>
+              <View style={styles.surveyParent}>
+                  <Text style={styles.survey}>Survey</Text>
+                  <TouchableOpacity onPress={toggleSubmitModal}>
+                      <Image
+                          style={styles.iconX}
+                          resizeMode="cover"
+                          source={require("../images/cross.png")}
+                      />
+                  </TouchableOpacity>
               </View>
-            </View>
-            <TouchableOpacity style={styles.typebuttonType2secondary1} onPress={submitSurvey}>
-              {loading ? (
-                  <ActivityIndicator size="small" color="#ffffff" /> // Loader when submitting
-              ) : (
-                  <Text style={styles.submitSurveyText}>Submit Survey</Text>
-              )}
-            </TouchableOpacity>
+              <View style={styles.rectangle} />
+              <View style={styles.textGroup}>
+                  <Text style={styles.text4}>{title}</Text>
+                  <View style={styles.frameView}>
+                      <TouchableOpacity style={styles.sendNowParent} onPress={toggleSendNow}>
+                          <Text style={styles.sendNow}>Send Now</Text>
+                          <View style={styles.switchContainer}>
+                              <Switch
+                                  trackColor={{ false: '#767577', true: '#81b0ff' }}
+                                  thumbColor={sendNowActive ? '#007bff' : '#f4f3f4'}
+                                  onValueChange={toggleSendNow}
+                                  value={sendNowActive}
+                                  style={styles.switch} 
+                                  touchSoundDisabled={true}
+                              />
+                          </View>
+                      </TouchableOpacity>
+                      <Text style={[styles.text5, sendNowActive ? styles.textActive : styles.textInactive]}>
+                          {sendNowActive ? "Results will be sent now." : "You can send later."}
+                      </Text>
+                  </View>
+              </View>
+              <TouchableOpacity style={styles.typebuttonType2secondary1} onPress={submitSurvey}>
+                  {loading ? (
+                      <ActivityIndicator size="small" color="#ffffff" /> 
+                  ) : (
+                      <Text style={styles.submitSurveyText}>Submit Survey</Text>
+                  )}
+              </TouchableOpacity>
           </View>
       </Modal>
 
       {/* Showing Selected Images Modal */}
       <Modal visible={isModalVisible} transparent={true} animationType="fade">
-        <BlurView
-          style={styles.blur}
-          blurType="light"
-          blurAmount={5}
-          reducedTransparencyFallbackColor="white"
-        />
-        <View style={styles.modalContainer}>
-          <ScrollView contentContainerStyle={styles.modalScrollView}>
-            {selectedImages.map((uri, index) => (
-              <View key={index} style={styles.modalImageWrapper}>
-                <Image
-                  style={styles.modalImage}
-                  source={{ uri }}
-                />
-                <TouchableOpacity style={styles.modalRemoveButton} onPress={() => removeImage(uri)}>
-                  <Text style={styles.modalRemoveText}>×</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
-          <TouchableOpacity style={styles.closeButton} onPress={toggleModal}>
-            <Text style={styles.closeButtonText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+          <BlurView
+            style={styles.blur}
+            blurType="light"
+            blurAmount={5}
+            reducedTransparencyFallbackColor="white"
+          />
+          <View style={styles.modalContainer1}>
+            <View style={styles.modalContent1}>
+              <ScrollView contentContainerStyle={styles.modalScrollView1}>
+                {selectedImages.map((image, index) => (
+                  <View key={index} style={styles.modalImageWrapper1}>
+                    <Image
+                      style={styles.modalImage1}
+                      resizeMode="cover"
+                      source={{ uri: image.uri }}
+                    />
+                    <TouchableOpacity style={styles.removeImageButtonModal1} onPress={() => removeImage(image.uri)}>
+                      <Text style={styles.removeImageTextModal1}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+              <TouchableOpacity style={styles.closeModalButton1} onPress={toggleModal}>
+                <Text style={styles.closeModalButtonText1}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -1263,6 +1460,78 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   
+
+  // Stylings for Selected Images Model
+  modalContainer1: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent1: {
+    width: "80%",
+    backgroundColor: "white",
+    borderRadius: 16,
+    paddingLeft: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
+  },
+  modalScrollView1: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  modalImageWrapper1: {
+    position: "relative",
+    margin: 5,
+  },
+  modalImage1: {
+    width: 80,
+    height: 80,
+    borderRadius: 10,
+  },
+  closeModalButton1: {
+    backgroundColor: "#007bff",
+    padding: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 20,
+    marginRight: 10,
+  },
+  closeModalButtonText1: {
+    fontSize: 16,
+    color: "white",
+  },
+  removeImageButton1: {
+    position: "absolute",
+    top: -3,
+    right: 7,
+    backgroundColor: "black",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  removeImageText1: {
+    color: "white",
+    fontSize: 17,
+    paddingBottom: 5,
+  },
+  removeImageButtonModal1: {
+    position: "absolute",
+    top: -4,
+    right: -2,
+    backgroundColor: "black",
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  removeImageTextModal1: {
+    color: "white",
+    fontSize: 17,
+    paddingBottom: 5,
+  },
 });
 
 export default SpecificSurvey;
