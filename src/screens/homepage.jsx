@@ -9,11 +9,12 @@ import {
   TouchableWithoutFeedback,
   ActivityIndicator,
 } from "react-native";
+import * as Updates from "expo-updates";
 import { Image } from "expo-image";
 import LinearGradient from "react-native-linear-gradient";
-import Text from '../components/text';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ProgressBar } from 'react-native-paper'; // Make sure to install react-native-paper
+import Text from "../components/text";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ProgressBar } from "react-native-paper"; // Make sure to install react-native-paper
 
 import TapOnMyLocationSuggested from "./tapOnLocation";
 import AddNewLocation1 from "./addNewLocation-1";
@@ -37,252 +38,289 @@ const Homepage = ({ navigation, route }) => {
   const [error, setError] = useState(null);
   const [selectedSurvey, setSelectedSurvey] = useState(null);
   const [storeData, setStoreData] = useState([]); // New state for storing store data
-  const [token, setToken] = useState(route.params?.token || ''); // Use token from route or empty string
+  const [token, setToken] = useState(route.params?.token || ""); // Use token from route or empty string
   const [savedSurveys, setSavedSurveys] = useState([]); // State for saved surveys
   const [hasSavedSurveys, setHasSavedSurveys] = useState(false);
   const [loading1, setLoading1] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0); // Track upload progress
 
-
   const { authState } = useContext(AuthContext);
+  const [lastRefreshTime, setLastRefreshTime] = useState(new Date()); // State for last refresh time
 
   // Extract the locations object from authState
   const locationsObject = authState.locations || {};
-  const locationNames = Object.values(locationsObject).flatMap(loc => Object.values(loc));  // Extract location names from nested objects
-
+  const locationNames = Object.values(locationsObject).flatMap((loc) =>
+    Object.values(loc)
+  ); // Extract location names from nested objects
 
   useEffect(() => {
     const checkSavedSurveys = async () => {
-        const existingSurveys = await AsyncStorage.getItem('savedSurveys');
-        if (existingSurveys) {
-            const parsedSurveys = JSON.parse(existingSurveys);
-            setSavedSurveys(parsedSurveys);
-            setHasSavedSurveys(parsedSurveys.length > 0);
-        }
-        else {
-          console.log('No Saved Surveys.');
-        }
+      const existingSurveys = await AsyncStorage.getItem("savedSurveys");
+      if (existingSurveys) {
+        const parsedSurveys = JSON.parse(existingSurveys);
+        setSavedSurveys(parsedSurveys);
+        setHasSavedSurveys(parsedSurveys.length > 0);
+      } else {
+        console.log("No Saved Surveys.");
+      }
     };
 
     checkSavedSurveys();
   }, []);
 
-
   useEffect(() => {
     const fetchToken = async () => {
-        const storedToken = await AsyncStorage.getItem('userToken');
-        if (storedToken) {
-            setToken(storedToken); // Set token from AsyncStorage if available
-            console.log('Token retrieved:', storedToken);
-        } else {
-            // If no token is available, redirect to the login screen
-            console.log('No token found, navigating to login.');
-            navigation.navigate('Login');
-        }
-      };
-      fetchToken();
-  }, [navigation]); 
-
+      const storedToken = await AsyncStorage.getItem("userToken");
+      if (storedToken) {
+        setToken(storedToken); // Set token from AsyncStorage if available
+        console.log("Token retrieved:", storedToken);
+      } else {
+        // If no token is available, redirect to the login screen
+        console.log("No token found, navigating to login.");
+        navigation.navigate("Login");
+      }
+    };
+    fetchToken();
+  }, [navigation]);
 
   const fetchSavedSurveys = async () => {
-      if (!token) {
-          console.error('No valid token found. Cannot fetch saved surveys.');
-          return; // Exit if token is invalid
-      }
+    if (!token) {
+      console.error("No valid token found. Cannot fetch saved surveys.");
+      return; // Exit if token is invalid
+    }
 
-      setLoading1(true);
-      setUploadProgress(0); // Reset progress
+    setLoading1(true);
+    setUploadProgress(0); // Reset progress
 
-      try {
-          const existingSurveys = await AsyncStorage.getItem('savedSurveys');
-          if (existingSurveys) {
-              const parsedSurveys = JSON.parse(existingSurveys);
-              console.log('Parsed Surveys:', parsedSurveys);
-              setSavedSurveys(parsedSurveys);
+    try {
+      const existingSurveys = await AsyncStorage.getItem("savedSurveys");
+      if (existingSurveys) {
+        const parsedSurveys = JSON.parse(existingSurveys);
+        console.log("Parsed Surveys:", parsedSurveys);
+        setSavedSurveys(parsedSurveys);
 
-              if (parsedSurveys.length > 0) {
-                  const totalQuestions = parsedSurveys.reduce((total, survey) => total + survey.data.length, 0);
-                  let processedQuestions = 0;
-                  for (let i = 0; i < parsedSurveys.length; i++) {
-                      const survey = parsedSurveys[i];
-                      const { surId, lat, lon } = survey;
+        if (parsedSurveys.length > 0) {
+          const totalQuestions = parsedSurveys.reduce(
+            (total, survey) => total + survey.data.length,
+            0
+          );
+          let processedQuestions = 0;
+          for (let i = 0; i < parsedSurveys.length; i++) {
+            const survey = parsedSurveys[i];
+            const { surId, lat, lon } = survey;
 
-                      console.log(`Starting survey ID: ${surId}`);
+            console.log(`Starting survey ID: ${surId}`);
 
-                      // Start the survey first
-                      const startResponse = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/start/${lat}/${lon}`, {
-                          method: 'PATCH',
-                          headers: {
-                              'x-st3-token': token,
-                          },
-                      });
-
-                      const rawStartResponse = await startResponse.text();
-                      console.log('Raw start response:', rawStartResponse);
-
-                      if (!startResponse.ok) {
-                          console.error('Error starting survey:', rawStartResponse);
-                          continue; // Skip to the next survey if starting fails
-                      }
-
-                      console.log('Survey started successfully');
-
-                      for (const question of survey.data) {
-                          const { questionId, pluginCode, answer } = question;
-
-                          await submitAnswer(surId, questionId, answer, token, pluginCode);
-
-                          // Update processed questions count
-                          processedQuestions++;
-                          setUploadProgress((processedQuestions / totalQuestions) * 100);
-
-                          if (pluginCode === 'IMGL' && Array.isArray(answer) && answer.length > 0) {
-                              console.log('Uploading images for question:', questionId);
-                              await uploadImages(surId, questionId, answer, token);
-                          }
-                      }
-                  }
-                  await AsyncStorage.removeItem('savedSurveys');
-                  console.log('All saved surveys uploaded successfully!');
-              } else {
-                  console.log('No saved surveys found.');
+            // Start the survey first
+            const startResponse = await fetch(
+              `https://stapi.simplifiedtrade.com/app/v2/${surId}/start/${lat}/${lon}`,
+              {
+                method: "PATCH",
+                headers: {
+                  "x-st3-token": token,
+                },
               }
-          } else {
-              console.log('No saved surveys found.');
+            );
+
+            const rawStartResponse = await startResponse.text();
+            console.log("Raw start response:", rawStartResponse);
+
+            if (!startResponse.ok) {
+              console.error("Error starting survey:", rawStartResponse);
+              continue; // Skip to the next survey if starting fails
+            }
+
+            console.log("Survey started successfully");
+
+            for (const question of survey.data) {
+              const { questionId, pluginCode, answer } = question;
+
+              await submitAnswer(surId, questionId, answer, token, pluginCode);
+
+              // Update processed questions count
+              processedQuestions++;
+              setUploadProgress((processedQuestions / totalQuestions) * 100);
+
+              if (
+                pluginCode === "IMGL" &&
+                Array.isArray(answer) &&
+                answer.length > 0
+              ) {
+                console.log("Uploading images for question:", questionId);
+                await uploadImages(surId, questionId, answer, token);
+              }
+            }
           }
-      } catch (error) {
-          console.error('Failed to retrieve saved surveys:', error);
-      } finally {
-        setLoading1(false); // Ensure loading is set to false at the end
+          await AsyncStorage.removeItem("savedSurveys");
+          console.log("All saved surveys uploaded successfully!");
+        } else {
+          console.log("No saved surveys found.");
+        }
+      } else {
+        console.log("No saved surveys found.");
       }
+    } catch (error) {
+      console.error("Failed to retrieve saved surveys:", error);
+    } finally {
+      setLoading1(false); // Ensure loading is set to false at the end
+    }
   };
 
   useEffect(() => {
     const checkSavedSurveys = async () => {
-        const existingSurveys = await AsyncStorage.getItem('savedSurveys');
-        if (existingSurveys) {
-            const parsedSurveys = JSON.parse(existingSurveys);
-            setSavedSurveys(parsedSurveys);
-        }
+      const existingSurveys = await AsyncStorage.getItem("savedSurveys");
+      if (existingSurveys) {
+        const parsedSurveys = JSON.parse(existingSurveys);
+        setSavedSurveys(parsedSurveys);
+      }
     };
 
     checkSavedSurveys();
-}, []);
-
+  }, []);
 
   const uploadImages = async (surId, questionId, images, token) => {
     for (let index = 0; index < images.length; index++) {
-        const image = images[index];
+      const image = images[index];
 
-        // Create a FormData object
-        const formData = new FormData();
+      // Create a FormData object
+      const formData = new FormData();
 
-        // Determine the file type based on the image name or URI
-        const fileType = image.name.split('.').pop().toLowerCase(); // Get the file extension
-        const mimeType = `image/${fileType}`; // Construct the MIME type
+      // Determine the file type based on the image name or URI
+      const fileType = image.name.split(".").pop().toLowerCase(); // Get the file extension
+      const mimeType = `image/${fileType}`; // Construct the MIME type
 
-        formData.append('file', {
-            uri: image.uri, // The URI of the image
-            name: image.name, // The name of the file
-            type: mimeType, // Set the MIME type dynamically
-        });
+      formData.append("file", {
+        uri: image.uri, // The URI of the image
+        name: image.name, // The name of the file
+        type: mimeType, // Set the MIME type dynamically
+      });
 
-        console.log(`Uploading image ${index + 1} for question ${questionId}...`);
+      console.log(`Uploading image ${index + 1} for question ${questionId}...`);
 
-        try {
-            const uploadResponse = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/upload/${questionId}/${index}`, {
-                method: 'POST',
-                headers: {
-                    'x-st3-token': token,
-                },
-                body: formData,
-            });
+      try {
+        const uploadResponse = await fetch(
+          `https://stapi.simplifiedtrade.com/app/v2/${surId}/upload/${questionId}/${index}`,
+          {
+            method: "POST",
+            headers: {
+              "x-st3-token": token,
+            },
+            body: formData,
+          }
+        );
 
-            // Log the response status code
-            console.log(`Response status for question ${questionId}, image ${index}:`, uploadResponse.status);
+        // Log the response status code
+        console.log(
+          `Response status for question ${questionId}, image ${index}:`,
+          uploadResponse.status
+        );
 
-            // Check if the response is OK (status code 204)
-            if (uploadResponse.ok) {
-                const rawUploadResponse = await uploadResponse.text();
-                console.log(`Upload response for question ${questionId}, image ${index}:`, rawUploadResponse);
-            } else {
-                console.error(`Failed to upload image for question ${questionId}:`, uploadResponse.statusText);
-                throw new Error(`Failed to upload image for question ${questionId}: ${uploadResponse.statusText}`);
-            }
-        } catch (error) {
-            console.error('Error uploading image:', error);
+        // Check if the response is OK (status code 204)
+        if (uploadResponse.ok) {
+          const rawUploadResponse = await uploadResponse.text();
+          console.log(
+            `Upload response for question ${questionId}, image ${index}:`,
+            rawUploadResponse
+          );
+        } else {
+          console.error(
+            `Failed to upload image for question ${questionId}:`,
+            uploadResponse.statusText
+          );
+          throw new Error(
+            `Failed to upload image for question ${questionId}: ${uploadResponse.statusText}`
+          );
         }
+      } catch (error) {
+        console.error("Error uploading image:", error);
+      }
     }
   };
 
   // Submit answer function
   const submitAnswer = async (surId, questionId, answer, token, pluginCode) => {
-      let body;
+    let body;
 
-      console.log(`Question ID: ${questionId}, Answer:`, answer);
+    console.log(`Question ID: ${questionId}, Answer:`, answer);
 
-      // Check if the answer is valid for submission
-      if (pluginCode === 'IMGL') {
-          // Handle image uploads
-          const finalAnswer = JSON.stringify(answer.map((img, index) => ({
-              key: index.toString(),
-              name: img.name,
-              uri: img.uri // Include URI if needed
-          })));
+    // Check if the answer is valid for submission
+    if (pluginCode === "IMGL") {
+      // Handle image uploads
+      const finalAnswer = JSON.stringify(
+        answer.map((img, index) => ({
+          key: index.toString(),
+          name: img.name,
+          uri: img.uri, // Include URI if needed
+        }))
+      );
 
-          body = JSON.stringify({
-              question_id: questionId,
-              answers: {
-                  answer_content: [finalAnswer]
-              }
-          });
-      } else if (pluginCode === 'CHO1' || pluginCode === 'CHOM') {
-          // Handle choice questions
-          body = JSON.stringify({
-              question_id: questionId,
-              answers: {
-                  option: Array.isArray(answer) ? answer : [answer]
-              }
-          });
-      } else if (pluginCode === 'TXT' || pluginCode === 'MNY' || pluginCode === 'NUM' || pluginCode === 'STR5' || pluginCode === 'DATE') {
-          // Ensure that text responses are handled correctly
-          body = JSON.stringify({
-              question_id: questionId,
-              answers: {
-                  answer_content: [answer] // Wrap the answer in an array
-              }
-          });
-      } else {
-          // Log and skip submission for unsupported question types
-          console.log(`Skipping submission for Question ID: ${questionId} due to un-tackled pluginCode: ${pluginCode}`);
-          return; // Exit the function early
+      body = JSON.stringify({
+        question_id: questionId,
+        answers: {
+          answer_content: [finalAnswer],
+        },
+      });
+    } else if (pluginCode === "CHO1" || pluginCode === "CHOM") {
+      // Handle choice questions
+      body = JSON.stringify({
+        question_id: questionId,
+        answers: {
+          option: Array.isArray(answer) ? answer : [answer],
+        },
+      });
+    } else if (
+      pluginCode === "TXT" ||
+      pluginCode === "MNY" ||
+      pluginCode === "NUM" ||
+      pluginCode === "STR5" ||
+      pluginCode === "DATE"
+    ) {
+      // Ensure that text responses are handled correctly
+      body = JSON.stringify({
+        question_id: questionId,
+        answers: {
+          answer_content: [answer], // Wrap the answer in an array
+        },
+      });
+    } else {
+      // Log and skip submission for unsupported question types
+      console.log(
+        `Skipping submission for Question ID: ${questionId} due to un-tackled pluginCode: ${pluginCode}`
+      );
+      return; // Exit the function early
+    }
+
+    console.log(`Submitting answer for question ${questionId}:`, body);
+
+    try {
+      const response = await fetch(
+        `https://stapi.simplifiedtrade.com/app/v2/${surId}/answer`,
+        {
+          method: "PATCH",
+          headers: {
+            "x-st3-token": token,
+            "Content-Type": "application/json", // Ensure the content type is set correctly
+          },
+          body: body,
+        }
+      );
+
+      const rawAnswerResponse = await response.text();
+      console.log("Raw answer response:", rawAnswerResponse);
+
+      if (!response.ok) {
+        console.error(
+          `Failed to submit answer for question ${questionId}:`,
+          rawAnswerResponse
+        );
+        throw new Error(
+          `Failed to submit answer for question ${questionId}: ${response.statusText}`
+        );
       }
-
-      console.log(`Submitting answer for question ${questionId}:`, body);
-
-      try {
-          const response = await fetch(`https://stapi.simplifiedtrade.com/app/v2/${surId}/answer`, {
-              method: 'PATCH',
-              headers: {
-                  'x-st3-token': token,
-                  'Content-Type': 'application/json', // Ensure the content type is set correctly
-              },
-              body: body,
-          });
-
-          const rawAnswerResponse = await response.text();
-          console.log('Raw answer response:', rawAnswerResponse);
-
-          if (!response.ok) {
-              console.error(`Failed to submit answer for question ${questionId}:`, rawAnswerResponse);
-              throw new Error(`Failed to submit answer for question ${questionId}: ${response.statusText}`);
-          }
-      } catch (error) {
-          console.error('Error in submission process:', error);
-      }
+    } catch (error) {
+      console.error("Error in submission process:", error);
+    }
   };
-
-
 
   // Fetch Survey Data
   useEffect(() => {
@@ -383,9 +421,9 @@ const Homepage = ({ navigation, route }) => {
 
   const handleImageClick = () => {
     if (hasSavedSurveys) {
-        fetchSavedSurveys(); // Call fetchSavedSurveys if there are saved surveys
+      fetchSavedSurveys(); // Call fetchSavedSurveys if there are saved surveys
     } else {
-        handleImagePress(); // Otherwise, call the existing handler
+      handleImagePress(); // Otherwise, call the existing handler
     }
   };
 
@@ -531,6 +569,33 @@ const Homepage = ({ navigation, route }) => {
     }
   };
 
+  //refresh page function
+  const handleRefresh = async () => {
+    try {
+      await Updates.reloadAsync(); // Reload the app
+      setLastRefreshTime(new Date()); // Set the new refresh time
+    } catch (error) {
+      console.log("Error reloading app:", error);
+    }
+  };
+
+  // Get the last refresh time
+  const getRefreshMessage = () => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - lastRefreshTime) / 1000);
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+
+    if (diffInSeconds < 60) {
+      return "Refreshed few seconds ago";
+    } else if (diffInMinutes <= 10) {
+      return `Refreshed ${diffInMinutes} minute${
+        diffInMinutes > 1 ? "s" : ""
+      } ago`;
+    } else {
+      return "Refreshed much time ago";
+    }
+  };
+
   return (
     <View style={styles.homepage}>
       <TouchableOpacity
@@ -543,23 +608,29 @@ const Homepage = ({ navigation, route }) => {
         />
       </TouchableOpacity>
       <View style={styles.logoContainer}>
-        <Image
-          source={require("../images/logo-1.png")}
-          style={styles.logo}
-        />
+        <Image source={require("../images/logo-1.png")} style={styles.logo} />
       </View>
       {loading1 ? (
         <View style={styles.loadingContainer1}>
-            <ActivityIndicator size="large" color="#0000ff" />
-            <Text style={styles.loadingText1}>Uploading... {uploadProgress}%</Text>
-            <ProgressBar progress={uploadProgress / 100} color="#6200ee" style={styles.progressBar1} />
+          <ActivityIndicator size="large" color="#0000ff" />
+          <Text style={styles.loadingText1}>
+            Uploading... {uploadProgress}%
+          </Text>
+          <ProgressBar
+            progress={uploadProgress / 100}
+            color="#6200ee"
+            style={styles.progressBar1}
+          />
         </View>
       ) : (
-        <TouchableOpacity style={styles.touchableOpacity} onPress={handleImageClick}>
-            <Image
-                style={[styles.vectorIcon, hasSavedSurveys && styles.redIcon]}
-                source={require("../images/vector1.png")}
-            />
+        <TouchableOpacity
+          style={styles.touchableOpacity}
+          onPress={handleImageClick}
+        >
+          <Image
+            style={[styles.vectorIcon, hasSavedSurveys && styles.redIcon]}
+            source={require("../images/vector1.png")}
+          />
         </TouchableOpacity>
       )}
       <View style={styles.searchContainer}>
@@ -628,6 +699,25 @@ const Homepage = ({ navigation, route }) => {
                 ).locationName
               : `+ ${locationCount} Locations`;
 
+          // Filter saved surveys to match both surId and checksum for this survey
+          const completionSurIds = survey.completions.map(
+            (completion) => completion.surId
+          );
+          const matchingSavedSurveys = savedSurveys.filter(
+            (savedSurvey) =>
+              completionSurIds.includes(savedSurvey.surId) &&
+              savedSurvey.checksum === survey.checksum
+          );
+          const pendingCount = matchingSavedSurveys.length;
+
+          // Debugging logs
+          console.log("Matching Saved Surveys:", matchingSavedSurveys);
+          console.log(
+            "Pending Count for survey:",
+            survey.surveyName,
+            pendingCount
+          );
+
           return (
             <TouchableOpacity key={index} activeOpacity={0.95}>
               <View style={styles.cardContainer}>
@@ -672,37 +762,31 @@ const Homepage = ({ navigation, route }) => {
                     </View>
                   </View>
                 </TouchableOpacity>
-                {surveyData.map((survey) => {
-                    const completionSurIds = survey.completions.map(completion => completion.surId);
 
-                    // Filter saved surveys to match both surId and checksum
-                    const matchingSavedSurveys = savedSurveys.filter(savedSurvey => 
-                        completionSurIds.includes(savedSurvey.surId) && savedSurvey.checksum === survey.checksum
-                    );
+                {/* Display pending count only if it's greater than 0 */}
+                <View style={styles.shapeCount}>
+                  {pendingCount > 0 ? (
+                    <View style={styles.shapePendingContainer}>
+                      <Text style={styles.shapeText}>{pendingCount}</Text>
+                    </View>
+                  ) : null}
 
-                    var pendingCount = matchingSavedSurveys.length;
-
-                    // Debugging logs
-                    console.log('Matching Saved Surveys:', matchingSavedSurveys);
-                    console.log('Pending Count:', pendingCount);
-
-                    return (
-                        <View key={survey.surveyName} style={styles.shapeCount}>
-                            {pendingCount > 0 ? ( 
-                                <View style={styles.shapePendingContainer}>
-                                    <Text style={styles.shapeText}>{pendingCount}</Text> 
-                                </View>
-                            ) : null}
-                            <View style={styles.shapeContainer}>
-                                <Text style={styles.shapeText}>{survey.count}</Text>
-                            </View>
-                        </View>
-                    );
-                })}
+                  <View style={styles.shapeContainer}>
+                    <Text style={styles.shapeText}>{survey.count}</Text>
+                  </View>
+                </View>
               </View>
             </TouchableOpacity>
           );
         })}
+        {/* refresing module */}
+        <TouchableOpacity
+          style={styles.refreshContainer}
+          onPress={handleRefresh}
+        >
+          <Text style={styles.refreshText}>Refresh List</Text>
+          <Text style={styles.refreshTime}>{getRefreshMessage()}</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Suggested Locations Modal */}
@@ -843,28 +927,28 @@ const styles = StyleSheet.create({
     height: 30,
   },
   redIcon: {
-    tintColor: 'red', // Change color to red
+    tintColor: "red", // Change color to red
   },
   loadingContainer1: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0.5, 0.5, 0.5, 0.8)', // Semi-transparent background
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0.5, 0.5, 0.5, 0.8)", // Semi-transparent background
     zIndex: 1000, // Ensure it appears above other elements
   },
   loadingText1: {
-      marginTop: 20,
-      fontSize: 18,
-      color: '#fff', // Change text color for better visibility
+    marginTop: 20,
+    fontSize: 18,
+    color: "#fff", // Change text color for better visibility
   },
   progressBar1: {
-      width: '80%',
-      height: 10,
-      marginTop: 10,
+    width: "80%",
+    height: 10,
+    marginTop: 10,
   },
   searchContainer: {
     flexDirection: "row",
@@ -1006,7 +1090,6 @@ const styles = StyleSheet.create({
     height: 40,
     width: 40,
     borderRadius: 50,
-    marginRight: 5,
   },
   shapeContainer: {
     justifyContent: "center",
@@ -1015,6 +1098,7 @@ const styles = StyleSheet.create({
     height: 40,
     width: 40,
     borderRadius: 50,
+    marginLeft: 5,
   },
   shapeText: {
     fontSize: 12, // Adjust font size as needed
@@ -1033,6 +1117,21 @@ const styles = StyleSheet.create({
   errorText: {
     color: "red",
     fontSize: 16,
+  },
+  //refreshing
+  refreshContainer: {
+    flex: 1,
+    alignItems: "flex-end",
+    paddingRight: "7%",
+    paddingTop: 10,
+  },
+  refreshText: {
+    color: "#007bff",
+    fontSize: 14,
+  },
+  refreshTime: {
+    color: "#5E5E5E",
+    fontSize: 12,
   },
 });
 

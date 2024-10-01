@@ -1110,7 +1110,7 @@ const SpecificSurvey = ({ route }) => {
           <View style={styles.rectangle}/>
           <View style={styles.textGroup}>
             <Text style={styles.text4}>
-              Recurring Reload Copying 2 Survey Machine
+              {route.params.location}
             </Text>
             <View style={styles.frameView}>
               <TouchableOpacity
