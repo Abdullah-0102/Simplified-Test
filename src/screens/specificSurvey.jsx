@@ -773,7 +773,7 @@ const SpecificSurvey = ({ route }) => {
                     {
                         text: 'OK',
                         onPress: () => {
-                            navigation.goBack();
+                          navigation.navigate('HomePage');
                         },
                     },
                 ],
@@ -794,7 +794,7 @@ const SpecificSurvey = ({ route }) => {
                 {
                     text: 'OK',
                     onPress: () => {
-                        navigation.goBack();
+                      navigation.navigate('HomePage');
                     },
                 },
             ],
@@ -1076,7 +1076,7 @@ const SpecificSurvey = ({ route }) => {
             </Text>
             <TouchableOpacity
               style={styles.closeButton}
-              onPress={() => navigation.goBack()}
+              onPress={() => navigation.navigate('HomePage')}
             >
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>

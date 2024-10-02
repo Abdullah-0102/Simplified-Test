@@ -23,6 +23,8 @@ import AddNewLocation3 from "./addNewLocation-3";
 import LocationListModal from "../components/locationListModal";
 
 import { AuthContext } from "../contexts/authContext";
+import { useFocusEffect } from '@react-navigation/native';
+
 
 const Homepage = ({ navigation, route }) => {
   const [searchText, setSearchText] = useState("");
@@ -153,6 +155,7 @@ const Homepage = ({ navigation, route }) => {
           }
           await AsyncStorage.removeItem("savedSurveys");
           console.log("All saved surveys uploaded successfully!");
+          handleRefresh();
         } else {
           console.log("No saved surveys found.");
         }
@@ -772,14 +775,18 @@ const Homepage = ({ navigation, route }) => {
                   ) : null}
 
                   <View style={styles.shapeContainer}>
-                    <Text style={styles.shapeText}>{survey.count}</Text>
+                    <Text style={styles.shapeText}>
+                      {survey.count + pendingCount}
+                    </Text>
+                    {/* Here you add the pendingCount */}
                   </View>
                 </View>
               </View>
             </TouchableOpacity>
           );
         })}
-        {/* refresing module */}
+
+        {/* refreshing module */}
         <TouchableOpacity
           style={styles.refreshContainer}
           onPress={handleRefresh}
