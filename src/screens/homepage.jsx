@@ -23,8 +23,6 @@ import AddNewLocation3 from "./addNewLocation-3";
 import LocationListModal from "../components/locationListModal";
 
 import { AuthContext } from "../contexts/authContext";
-import { useFocusEffect } from '@react-navigation/native';
-
 
 const Homepage = ({ navigation, route }) => {
   const [searchText, setSearchText] = useState("");
@@ -47,6 +45,7 @@ const Homepage = ({ navigation, route }) => {
   const [uploadProgress, setUploadProgress] = useState(0); // Track upload progress
 
   const { authState } = useContext(AuthContext);
+  const userId = authState.userId;
   const [lastRefreshTime, setLastRefreshTime] = useState(new Date()); // State for last refresh time
 
   // Extract the locations object from authState
@@ -674,18 +673,15 @@ const Homepage = ({ navigation, route }) => {
         <Text style={styles.responses}>Responses</Text>
       </View>
 
-      {/* Pending Surveys */}
-      {/* <TouchableOpacity
-        style={[styles.pendingSurveys]}
-        onPress={checkSavedSurveyData}
-      >
-        <Text style={styles.pendingSurveysText}>Pending Surveys</Text>
-      </TouchableOpacity> */}
-
       {/* Repeatable card view */}
       <ScrollView style={styles.cardScrollView}>
         {filteredSurveys.map((survey, index) => {
           const locationCount = survey.completions.length;
+          const totalUserCompletedCount = filteredSurveys.reduce((acc, survey) => {
+            return acc + survey.completions.filter((completion) => {
+              return completion.userId === userId && completion.status === 'completed';
+            }).length;
+          }, 0);
 
           const displayLocation =
             searchText.trim() === ""
@@ -774,11 +770,12 @@ const Homepage = ({ navigation, route }) => {
                     </View>
                   ) : null}
 
-                  <View style={styles.shapeContainer}>
+                  {/* show count of users who have completed this survey */}
+                  <View style={styles.shapeContainer}> 
                     <Text style={styles.shapeText}>
-                      {survey.count + pendingCount}
+                      {totalUserCompletedCount}
                     </Text>
-                    {/* Here you add the pendingCount */}
+                    
                   </View>
                 </View>
               </View>
